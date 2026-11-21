@@ -42,8 +42,8 @@ describe('solver soundness against brute force', () => {
     const rng = makeRng(12345);
     let checked = 0, missed = 0, forcedStates = 0;
     for (let t = 0; t < 40; t++) {
-      const mech = ALL.filter(() => rng.chance(0.5));
-      const level = generateLevel({ seed: 1000 + t, size: 12 + rng.int(8), mechanics: mech, targetDifficulty: 3, attempts: 1 });
+      const mech = t % 3 === 0 ? (['basic', 'counter', 'eye', 'walls', 'gaps'] as MechanicId[]) : ALL.filter(() => rng.chance(0.5));
+      const level = generateLevel({ seed: 1000 + t, size: 12 + rng.int(8), mechanics: mech, targetDifficulty: 3, attempts: 1, special: t % 3 === 0 ? 0.6 : undefined });
       const b = buildBoard(level);
       for (let s = 0; s < 6; s++) {
         const vals = new Int8Array(b.n).fill(-1);

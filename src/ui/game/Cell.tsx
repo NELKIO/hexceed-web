@@ -2,16 +2,20 @@
 // are played imperatively through the element handed to `refCb`.
 //
 // Visual language of the clue glyphs (number always upright in the centre):
-//   line = thin coral arrow on the edge · cone = wide blue wedge · triangle = hollow wedge
-//   radius = circle · ring = double circle · donut = thick torus · dot = small dot marker
-//   swirl = curved arrow · island = island outline · chain = chain links · eye = eye
-//   parity = one / two dots · together {n} · apart -n- · blank = faint dot
+//   line = big coral arrow touching the edge it points through · cone = wide blue wedge ·
+//   triangle = hollow wedge · radius = filled soft disc · ring = one hollow thick band ·
+//   donut = two concentric bands · dot = small dot marker · swirl = curved arrow ·
+//   island = island outline · chain = chain links · eye = an eye whose iris holds the number ·
+//   parity = pill with two dots + "even" / circle with one dot + "odd" · together {n} · apart -n- ·
+//   blank = short dash. Decorations sit in `.deco` groups so the done state can dim them
+//   separately from the number (numbers keep >= 3:1 contrast).
 
 import type { ComponentChildren } from 'preact';
 import { memo } from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { CORNER_ANGLE, EDGE_ANGLE } from '../../core/hex';
 import { CellState } from '../../core/types';
+import { t } from '../../i18n';
 import { TILE_PATH } from './geometry';
 import type { LooseClue } from './compat';
 
@@ -60,7 +64,7 @@ function Num({ v, y = 0, size = 25 }: { v: string; y?: number; size?: number }) 
 function EdgeArrow({ d }: { d: number }) {
   return (
     <g transform={`rotate(${EDGE_ANGLE[m6(d)]})`}>
-      <path class="c-arrow" d="M21,-7.6 L31.5,0 L21,7.6 Z" />
+      <path class="c-arrow" d="M18.5,-10 L31,0 L18.5,10 Q21,0 18.5,-10 Z" />
     </g>
   );
 }
@@ -139,9 +143,10 @@ export function LockGlyph({ n }: { n: number }) {
 
 function EyeGlyph() {
   return (
-    <g class="c-eye" transform="translate(0 -13)">
-      <path d="M-12,0 Q0,-10 12,0 Q0,10 -12,0 Z" />
-      <circle r={3.6} />
+    <g class="c-eye">
+      <path class="eye-lid" d="M-24,0 Q0,-23 24,0 Q0,23 -24,0 Z" />
+      <path class="eye-lash" d="M-12.5,-11.5 L-15.5,-16.5 M0,-13 V-19 M12.5,-11.5 L15.5,-16.5" />
+      <circle class="eye-iris" r={11.8} />
     </g>
   );
 }
@@ -157,112 +162,137 @@ function ChainGlyph() {
 
 function ParityGlyph({ odd }: { odd: boolean }) {
   return (
-    <g class="c-par">
-      <rect x={-17} y={-10.5} width={34} height={21} rx={10.5} />
-      {odd ? <circle class="dot" r={5} /> : [<circle key="a" class="dot" cx={-6.5} r={4.6} />, <circle key="b" class="dot" cx={6.5} r={4.6} />]}
+    <g class={'c-par' + (odd ? ' odd' : ' even')}>
+      <g class="deco">
+        {odd ? (
+          <>
+            <circle class="frame" cy={-7} r={10} />
+            <circle class="dot" cy={-7} r={4.6} />
+          </>
+        ) : (
+          <>
+            <rect class="frame" x={-17.5} y={-17} width={35} height={20} rx={10} />
+            <circle class="dot" cx={-7} cy={-7} r={4.4} />
+            <circle class="dot" cx={7} cy={-7} r={4.4} />
+          </>
+        )}
+      </g>
+      <text class="cn par-lbl" y={13} font-size={odd ? 10 : 11} text-anchor="middle" dominant-baseline="central">
+        {t(odd ? 'odd' : 'even')}
+      </text>
     </g>
   );
 }
+
+const deco = (children: ComponentChildren) => <g class="deco">{children}</g>;
 
 /** Clue drawing for an open (or marked gemclue) unit. Direction decorations rotate with `rotDeg`. */
 export function ClueGlyph({ clue, value, rotDeg = 0, onGem }: { clue: LooseClue | undefined; value: string; rotDeg?: number; onGem?: boolean }) {
   if (!clue) return null;
   const rot = (children: ComponentChildren) => (
-    <g class="rotg" style={{ transform: `rotate(${rotDeg}deg)` }}>
+    <g class="rotg deco" style={{ transform: `rotate(${rotDeg}deg)` }}>
       {children}
     </g>
   );
   const dirs = clue.dirs ?? [0];
-  switch (clue.k) {
-    case 'blank':
-      return <circle class="c-blank" r={3.4} />;
-    case 'num':
-      if (clue.mod)
+  const long = value.length > 1;
+  const body = (() => {
+    switch (clue.k) {
+      case 'blank':
+        return deco(<path class="c-blank" d="M-7.5,0 H7.5" />);
+      case 'num':
+        if (clue.mod)
+          return (
+            <g>
+              {deco(<Braces mod={clue.mod} w={clue.mod === 'apart' ? 13 : 15} />)}
+              <Num v={value} size={22} />
+            </g>
+          );
+        return <Num v={value} />;
+      case 'line':
         return (
           <g>
-            <Braces mod={clue.mod} w={clue.mod === 'apart' ? 13 : 15} />
-            <Num v={value} size={22} />
+            {rot(dirs.map((d) => <EdgeArrow d={d} key={d} />))}
+            {clue.mod ? deco(<Braces mod={clue.mod} w={12} />) : null}
+            <Num v={value} size={clue.mod ? 17 : long ? 19 : 22} />
           </g>
         );
-      return <Num v={value} />;
-    case 'line':
-      return (
-        <g>
-          {rot(dirs.map((d) => <EdgeArrow d={d} key={d} />))}
-          {clue.mod ? <Braces mod={clue.mod} w={12} /> : null}
-          <Num v={value} size={clue.mod ? 18 : 22} />
-        </g>
-      );
-    case 'cone':
-    case 'triangle':
-      return (
-        <g>
-          {rot(dirs.map((c) => <Wedge c={c} key={c} hollow={clue.k === 'triangle'} />))}
-          <Num v={value} size={21} />
-        </g>
-      );
-    case 'dot':
-      return (
-        <g>
-          {rot(dirs.map((d) => <DotMark d={d} key={d} corner={clue.corner} />))}
-          <Num v={value} size={21} />
-        </g>
-      );
-    case 'swirl':
-      return (
-        <g>
-          {rot(<Swirl d={dirs[0] ?? 0} ccw={clue.ccw} />)}
-          <Num v={value} size={20} />
-        </g>
-      );
-    case 'radius':
-      return (
-        <g class={onGem ? 'on-gem' : ''}>
-          <circle class="c-radius" r={17.5} />
-          <Num v={value} size={19} />
-        </g>
-      );
-    case 'ring':
-      return (
-        <g class={onGem ? 'on-gem' : ''}>
-          <circle class="c-ring" r={14.5} />
-          <circle class="c-ring" r={20} />
-          <Num v={value} size={17} />
-        </g>
-      );
-    case 'donut':
-      return (
-        <g class={onGem ? 'on-gem' : ''}>
-          <circle class="c-donut" r={18.5} />
-          <Num v={value} size={18} />
-        </g>
-      );
-    case 'island':
-      return (
-        <g class={onGem ? 'on-gem' : ''}>
-          <path class="c-island" d="M-19,-3 C-20,-14 -7,-20 3,-18 C14,-16 21,-8 19,3 C17,13 6,19 -5,18 C-15,17 -18,8 -19,-3 Z" />
-          <Num v={value} size={18} />
-        </g>
-      );
-    case 'chain':
-      return (
-        <g>
-          <ChainGlyph />
-          <Num v={value} y={8} size={19} />
-        </g>
-      );
-    case 'eye':
-      return (
-        <g>
-          <EyeGlyph />
-          <Num v={value} y={8} size={19} />
-        </g>
-      );
-    case 'parity':
-      return <ParityGlyph odd={value === 'odd'} />;
-    default:
-      return value ? <Num v={value} /> : null;
-  }
+      case 'cone':
+      case 'triangle':
+        return (
+          <g>
+            {rot(dirs.map((c) => <Wedge c={c} key={c} hollow={clue.k === 'triangle'} />))}
+            <Num v={value} size={21} />
+          </g>
+        );
+      case 'dot':
+        return (
+          <g>
+            {rot(dirs.map((d) => <DotMark d={d} key={d} corner={clue.corner} />))}
+            <Num v={value} size={21} />
+          </g>
+        );
+      case 'swirl':
+        return (
+          <g>
+            {rot(<Swirl d={dirs[0] ?? 0} ccw={clue.ccw} />)}
+            <Num v={value} size={20} />
+          </g>
+        );
+      case 'radius':
+        return (
+          <g>
+            {deco(<circle class="c-radius" r={19} />)}
+            <Num v={value} size={20} />
+          </g>
+        );
+      case 'ring':
+        return (
+          <g>
+            {deco(<circle class="c-ring" r={17.8} />)}
+            <Num v={value} size={long ? 15 : 18} />
+          </g>
+        );
+      case 'donut':
+        return (
+          <g>
+            {deco(
+              <>
+                <circle class="c-donut" r={21.5} />
+                <circle class="c-donut" r={14.5} />
+              </>,
+            )}
+            <Num v={value} size={long ? 13.5 : 16} />
+          </g>
+        );
+      case 'island':
+        return (
+          <g>
+            {deco(<path class="c-island" d="M-19,-3 C-20,-14 -7,-20 3,-18 C14,-16 21,-8 19,3 C17,13 6,19 -5,18 C-15,17 -18,8 -19,-3 Z" />)}
+            <Num v={value} size={18} />
+          </g>
+        );
+      case 'chain':
+        return (
+          <g>
+            {deco(<ChainGlyph />)}
+            <Num v={value} y={8} size={19} />
+          </g>
+        );
+      case 'eye':
+        return (
+          <g>
+            {deco(<EyeGlyph />)}
+            <Num v={value} size={long ? 13 : 16} />
+          </g>
+        );
+      case 'parity':
+        return <ParityGlyph odd={value === 'odd'} />;
+      default:
+        return value ? <Num v={value} /> : null;
+    }
+  })();
+  return onGem ? <g class="on-gem">{body}</g> : body;
 }
 
 function HiddenTile({ locked, lockN, tile }: { locked: boolean; lockN: number; tile: string }) {

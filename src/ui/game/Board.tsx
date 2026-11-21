@@ -5,7 +5,8 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'preact/hooks';
 import { forwardRef } from 'preact/compat';
 import { BoardLayer, type BoardLayerProps } from './BoardLayer';
-import { cellAt, S } from './geometry';
+import { cellAt, INNER, S, type Layout } from './geometry';
+import { toPixel } from '../../core/hex';
 import { Particles, type ParticleKind } from './particles';
 
 export interface Badge {
@@ -21,6 +22,8 @@ export type Target = { t: 'cell'; i: number } | { t: 'badge'; b: Badge } | { t: 
 
 export interface BoardHandle {
   fit(animate?: boolean): void;
+  /** Pan just enough to bring cell i on screen (no-op when it already is). */
+  show(i: number): void;
   cellEl(i: number): SVGGElement | null;
   spawn(kind: ParticleKind, i: number, delay?: number): void;
   spawnAt(kind: ParticleKind, x: number, y: number, delay?: number): void;
@@ -38,6 +41,14 @@ interface Props extends Omit<BoardLayerProps, 'press'> {
   maxCell?: number;
   /** Extra space kept free at the bottom (floating buttons). */
   padBottom?: number;
+  /**
+   * Cells the camera frames (1 = in sight, e.g. not fogged). The camera fits them plus a one-cell
+   * margin and eases along as the set grows — until the user pans or zooms (F / double tap on
+   * empty space re-fits and re-enables following).
+   */
+  focus?: Uint8Array;
+  /** Board point to keep in view when the framed area is larger than the screen (last move). */
+  anchor?: [number, number] | null;
   onTap(t: Target, e: { mouse: boolean }): void;
   onDoubleTap(t: Target): void;
   onLong(t: Target): void;
@@ -51,6 +62,53 @@ interface Props extends Omit<BoardLayerProps, 'press'> {
 
 const LONG_MS = 360;
 
+interface Box {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Bounding box (board units) of the focus cells, or of the whole board. */
+function focusBox(L: Layout, focus: Uint8Array | undefined, margin: boolean): Box {
+  const full: Box = { minX: L.minX, minY: L.minY, maxX: L.maxX, maxY: L.maxY };
+  if (!focus) return full;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < L.hexes.length; i++) {
+    if (!focus[i]) continue;
+    for (const [q, r] of L.hexes[i]) {
+      const [x, y] = toPixel(q, r, S);
+      minX = Math.min(minX, x - S);
+      maxX = Math.max(maxX, x + S);
+      minY = Math.min(minY, y - INNER);
+      maxY = Math.max(maxY, y + INNER + 4);
+    }
+  }
+  if (minX === Infinity) return full;
+  if (margin) {
+    // one cell of margin, but never beyond the board itself
+    minX = Math.max(full.minX, minX - S * 1.5);
+    maxX = Math.min(full.maxX, maxX + S * 1.5);
+    minY = Math.max(full.minY, minY - INNER * 2);
+    maxY = Math.min(full.maxY, maxY + INNER * 2);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/** Smallest comfortable hex circumradius (px): phones keep hexes thumb-sized and pan instead. */
+function minCellPx(): number {
+  try {
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    const short = Math.min(innerWidth, innerHeight);
+    if (coarse || short < 520) return innerHeight < 500 ? 38 : 42;
+  } catch {
+    /* ignore */
+  }
+  return 24;
+}
+
+const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+
 export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props, ref) {
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -61,31 +119,107 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
   const fitView = useRef({ k: 1, tx: 0, ty: 0 });
   const userMoved = useRef(false);
   const cellEls = useRef<(SVGGElement | null)[]>([]);
+  const edges = useRef<HTMLDivElement>(null);
   const pr = useRef(props);
   pr.current = props;
   const anim = useRef(0);
+
+  /** Subtle edge fades where cells in sight continue beyond the screen. */
+  const edgeHints = () => {
+    const el = wrap.current, box = edges.current;
+    if (!el || !box) return;
+    const v = view.current;
+    const B = focusBox(pr.current.layout, pr.current.focus, false);
+    const W = el.clientWidth, H = el.clientHeight;
+    const on = [B.minX * v.k + v.tx < -6, B.maxX * v.k + v.tx > W + 6, B.minY * v.k + v.ty < -6, B.maxY * v.k + v.ty > H + 6];
+    for (let k = 0; k < 4; k++) (box.children[k] as HTMLElement | undefined)?.classList.toggle('on', on[k]);
+  };
 
   const apply = () => {
     const v = view.current;
     g.current?.setAttribute('transform', `translate(${v.tx.toFixed(2)} ${v.ty.toFixed(2)}) scale(${v.k.toFixed(4)})`);
     if (parts.current) parts.current.view = { ...v };
+    edgeHints();
   };
 
-  const computeFit = () => {
+  const computeFit = (initial = false) => {
     const el = wrap.current;
     if (!el) return null;
     const W = el.clientWidth, H = el.clientHeight;
+    if (!W || !H) return null;
     const L = pr.current.layout;
     const pad = pr.current.pad ?? 18;
     const maxCell = pr.current.maxCell ?? 54;
     const pb = pr.current.padBottom ?? 0;
-    const k = Math.min((W - pad * 2) / L.w, (H - pad * 2 - pb) / L.h, maxCell / S);
-    const tx = W / 2 - (L.minX + L.w / 2) * k;
-    const ty = (H - pb) / 2 - (L.minY + L.h / 2) * k;
+    const B = focusBox(L, pr.current.focus, true);
+    const bw = B.maxX - B.minX, bh = B.maxY - B.minY;
+    let k = Math.min((W - pad * 2) / bw, (H - pad * 2 - pb) / bh, maxCell / S);
+    const kMin = Math.min(minCellPx(), maxCell) / S;
+    let cx = (B.minX + B.maxX) / 2, cy = (B.minY + B.maxY) / 2;
+    if (k < kMin) {
+      // too big for the screen at a comfortable size: keep the size, frame the latest action
+      k = kMin;
+      const v = view.current;
+      const centre: [number, number] = [(W / 2 - v.tx) / v.k, ((H - pb) / 2 - v.ty) / v.k];
+      let a = initial ? pr.current.anchor ?? null : centre;
+      const an = pr.current.anchor;
+      if (!initial && an) {
+        // follow the latest move only when it would end up off screen
+        const sx = an[0] * k + (W / 2 - centre[0] * k), sy = an[1] * k + ((H - pb) / 2 - centre[1] * k);
+        const m = S * k * 1.2;
+        if (sx < m || sx > W - m || sy < m || sy > H - pb - m) a = an;
+      }
+      const halfW = (W / 2 - pad) / k, halfH = ((H - pb) / 2 - pad) / k;
+      const fx = (x: number) => (bw / 2 > halfW ? clamp(x, B.minX + halfW, B.maxX - halfW) : cx);
+      const fy = (y: number) => (bh / 2 > halfH ? clamp(y, B.minY + halfH, B.maxY - halfH) : cy);
+      const focus = pr.current.focus;
+      if (initial && focus) {
+        // frame the spot that shows the most cells in sight whole, with as few cells cut by the
+        // screen edges as possible (ties: nearest to the start)
+        const ref = a ?? [cx, cy];
+        const vw = W / 2 / k, vh = (H - pb) / 2 / k;
+        const idx: number[] = [];
+        for (let i = 0; i < L.px.length; i++) if (focus[i]) idx.push(i);
+        let best = -Infinity, bestD = Infinity, bx = cx, by = cy;
+        for (const i of idx)
+          for (const ox of [-1.5, -0.75, 0, 0.75, 1.5])
+            for (const oy of [-1, 0, 1]) {
+              const ccx = fx(L.px[i][0] + ox * S), ccy = fy(L.px[i][1] + oy * INNER);
+              let score = 0;
+              for (const j of idx) {
+                const dx = Math.abs(L.px[j][0] - ccx), dy = Math.abs(L.px[j][1] - ccy);
+                if (dx + S <= halfW && dy + INNER <= halfH) score += 10;
+                else if (dx - S < vw && dy - INNER < vh) score -= 6;
+              }
+              const d = Math.hypot(ccx - ref[0], ccy - ref[1]);
+              if (score > best || (score === best && d < bestD)) {
+                best = score;
+                bestD = d;
+                bx = ccx;
+                by = ccy;
+              }
+            }
+        cx = bx;
+        cy = by;
+      } else if (a) {
+        cx = fx(a[0]);
+        cy = fy(a[1]);
+      }
+    }
+    const tx = W / 2 - cx * k;
+    const ty = (H - pb) / 2 - cy * k;
     return { k, tx, ty };
   };
 
-  const animateTo = (to: { k: number; tx: number; ty: number }, ms = 280) => {
+  /** Zoom that shows the whole board (lower zoom limit). */
+  const fullK = () => {
+    const el = wrap.current;
+    const L = pr.current.layout;
+    if (!el) return 1;
+    return Math.min((el.clientWidth - 24) / L.w, (el.clientHeight - 24) / L.h);
+  };
+
+  const animateTo = (to: { k: number; tx: number; ty: number }, ms = 280, soft = false) => {
     cancelAnimationFrame(anim.current);
     if (pr.current.reducedMotion || ms <= 0) {
       view.current = { ...to };
@@ -96,7 +230,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     const t0 = performance.now();
     const step = (now: number) => {
       const t = Math.min(1, (now - t0) / ms);
-      const e = 1 - Math.pow(1 - t, 3);
+      const e = soft ? (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) : 1 - Math.pow(1 - t, 3);
       view.current = { k: from.k + (to.k - from.k) * e, tx: from.tx + (to.tx - from.tx) * e, ty: from.ty + (to.ty - from.ty) * e };
       apply();
       if (t < 1) anim.current = requestAnimationFrame(step);
@@ -104,16 +238,46 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     anim.current = requestAnimationFrame(step);
   };
 
-  const fit = (animate = true) => {
-    const f = computeFit();
+  const fit = (animate = true, initial = false) => {
+    const f = computeFit(initial);
     if (!f) return;
     fitView.current = f;
     userMoved.current = false;
-    animateTo(f, animate ? 280 : 0);
+    animateTo(f, animate ? 320 : 0);
+  };
+
+  /** Follow the fog lifting: ease to the new framing unless the user took over the camera. */
+  const follow = () => {
+    if (userMoved.current) return;
+    const f = computeFit();
+    if (!f) return;
+    fitView.current = f;
+    const v = view.current;
+    if (Math.abs(f.k - v.k) < 0.002 && Math.abs(f.tx - v.tx) < 1 && Math.abs(f.ty - v.ty) < 1) return;
+    animateTo(f, 750, true);
+  };
+  const userTook = () => {
+    userMoved.current = true;
+    cancelAnimationFrame(anim.current);
   };
 
   useImperativeHandle(ref, () => ({
     fit,
+    show: (i) => {
+      const el = wrap.current;
+      const p = pr.current.layout.px[i];
+      if (!el || !p) return;
+      const v = view.current;
+      const W = el.clientWidth, H = el.clientHeight;
+      const m = S * v.k * 1.4;
+      const sx = p[0] * v.k + v.tx, sy = p[1] * v.k + v.ty;
+      let dx = 0, dy = 0;
+      if (sx < m) dx = m - sx;
+      else if (sx > W - m) dx = W - m - sx;
+      if (sy < m) dy = m - sy;
+      else if (sy > H - m) dy = H - m - sy;
+      if (dx || dy) animateTo({ k: v.k, tx: v.tx + dx, ty: v.ty + dy }, 420, true);
+    },
     cellEl: (i) => cellEls.current[i] ?? null,
     spawn: (kind, i, delay = 0) => {
       const p = pr.current.layout.px[i];
@@ -145,7 +309,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       const el = wrap.current;
       if (!el) return;
       p.resize(el.clientWidth, el.clientHeight);
-      if (!userMoved.current) fit(false);
+      if (!userMoved.current) fit(false, true);
       else apply();
     };
     measure();
@@ -164,8 +328,18 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
 
   // refit when the level changes
   useEffect(() => {
-    fit(false);
+    fit(false, true);
   }, [props.layout]);
+
+  // the framed area changed (fog lifted): ease along
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    follow();
+  }, [props.focus]);
 
   // ---------------------------------------------------------------- gestures
   useEffect(() => {
@@ -200,7 +374,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       const L = pr.current.layout;
       const W = el.clientWidth, H = el.clientHeight;
       const f = fitView.current;
-      v.k = Math.max(f.k * 0.7, Math.min(v.k, Math.max(f.k * 4, 2.4)));
+      v.k = Math.max(Math.min(f.k, fullK()) * 0.8, Math.min(v.k, Math.max(f.k * 4, 2.4)));
       const cx = (L.minX + L.w / 2) * v.k + v.tx;
       const cy = (L.minY + L.h / 2) * v.k + v.ty;
       const mx = Math.max(W / 2, (L.w * v.k) / 2), my = Math.max(H / 2, (L.h * v.k) / 2);
@@ -272,7 +446,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       if (mode === 'pan') {
         view.current.tx += dx;
         view.current.ty += dy;
-        userMoved.current = true;
+        userTook();
         clampView();
         apply();
       } else if (mode === 'pinch' && pts.size >= 2) {
@@ -287,7 +461,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
         clampView();
         v.tx = mx - bx * v.k;
         v.ty = my - by * v.k;
-        userMoved.current = true;
+        userTook();
         apply();
       }
     };
@@ -338,7 +512,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       clampView();
       v.tx = p.x - bx * v.k;
       v.ty = p.y - by * v.k;
-      userMoved.current = true;
+      userTook();
       apply();
     };
 
@@ -384,6 +558,12 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
         </g>
       </svg>
       <canvas class="fx-canvas" ref={canvas} />
+      <div class="edge-hints" ref={edges} aria-hidden="true">
+        <i class="eh l" />
+        <i class="eh r" />
+        <i class="eh t" />
+        <i class="eh b" />
+      </div>
     </div>
   );
 });

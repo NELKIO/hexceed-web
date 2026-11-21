@@ -62,12 +62,21 @@ export interface GenOptions {
   feature?: MechanicId[];
   id?: string;
   title?: string;
-  /** Number of layouts to try (default 8, fewer for big or very hard levels). */
+  /** Number of layouts to try (default 5; 14 for teaching levels, 3 for big boards). */
   attempts?: number;
+  /** Solver-call budget for the whole generation (count-based, deterministic). Default ~400 + 10·size. */
+  budget?: number;
+  /** Accepted distance to targetDifficulty (default 1, 0 for targets <= 2). */
+  tolerance?: number;
+  /** Widest board in hex columns (default 9, 11 above 120 hexes). */
+  maxCols?: number;
 }
 
 /** Solver calls made by the current generateLevel() (deterministic work budget). */
 let work = 0;
+/** Solver calls after which the current attempt wraps up (finishes with what it has). */
+let workLimit = Infinity;
+const spent = () => work > workLimit;
 function solve(level: Level, o: SolveOptions = {}): DetailedReport {
   work++;
   return solveDetailed(level, o);
@@ -436,8 +445,12 @@ function sanitize(level: Level): void {
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
     if (!c.clue?.mod) continue;
+    if (c.extra) {
+      delete c.clue.mod;
+      continue;
+    }
     for (let t = 0; t < b.period; t++)
-      if (cellConstraints(b, i, t).some((x) => !feasible(x, sol))) {
+      if (cellConstraints(b, i, t).some((x) => !feasible(x, sol) || x.value < 2)) {
         delete c.clue.mod;
         break;
       }
@@ -455,7 +468,21 @@ interface Built {
   level: Level;
   report: DetailedReport;
   teachOK: boolean;
+  /** Extra score (lower is better): opening cascade, unneeded featured mechanics, soft tutorials. */
+  penalty: number;
 }
+
+/** Share of the cells decided by easy (tier-1) steps before the first harder step. */
+function openingShare(r: DetailedReport, n: number): number {
+  let cells = 0;
+  for (const e of r.events) {
+    if (e.tier >= 2) break;
+    cells += e.cells.length;
+  }
+  return cells / Math.max(1, n);
+}
+
+const hardSteps = (r: DetailedReport) => r.tierCounts[1] + r.tierCounts[2] + r.tierCounts[3];
 
 function solveOpts(mech: Set<MechanicId>, maxTier: Tier) {
   return { maxTier, noGlobal: !mech.has('counter') };
@@ -475,7 +502,6 @@ function teachSatisfied(level: Level, teach: MechanicId[], report: DetailedRepor
     }
     const used = report.events.some((e) => e.reasons.some((c) => constraintMechanics(b, c).includes(t)));
     if (!used) return false;
-    if (t === 'lock') continue; // locks are structural: being used is enough
     const without = solve(level, { ...solveOpts(mech, maxTier), exclude: t });
     if (without.solved) return false;
   }
@@ -549,14 +575,16 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const cx: Ctx = { rng, mech, teach: new Set(teach), weights: opts.weights ?? {} };
   const size = Math.max(7, Math.min(300, Math.round(opts.size)));
   const gaps = !!opts.gaps || mech.has('gaps') || mech.has('portal');
-  const islands = opts.islands ?? (gaps && size >= 16 && (cx.teach.has('portal') || rng.chance(0.5)));
+  // islands only when some clue can carry information across (otherwise every island needs a start)
+  const wantPortal = cx.teach.has('portal') || (opts.feature ?? []).includes('portal');
+  const islands = opts.islands ?? (gaps && size >= 16 && (wantPortal || (CROSS_ISLAND.some((m) => mech.has(m)) && rng.chance(0.5))));
   const fog = opts.fog ?? mech.has('fog');
   const isTeach = teach.length > 0;
   const NT = 3; // special cells on a teaching level
 
   // --- outline
-  let { coords, shape } = makeShape(rng, size, { gaps, islands, want: opts.shape });
-  if (gaps && !islands && !SHAPES.find((s) => s.id === shape)!.gaps && size >= 16 && rng.chance(0.6)) coords = carveHoles(rng, coords);
+  let { coords, shape } = makeShape(rng, size, { gaps, islands, want: opts.shape, maxCols: opts.maxCols });
+  if (gaps && !islands && !SHAPES.find((s) => s.id === shape)!.gaps && size >= 16 && (mech.has('portal') || rng.chance(0.6))) coords = carveHoles(rng, coords);
   let cells: LevelCell[] = coords.map(([q, r]) => ({ q, r, gem: false }));
   const level: Level = { id: opts.id ?? `gen-${typeof opts.seed === 'number' ? opts.seed : hashString(opts.seed)}`, cells, walls: [] };
   if (!fog) level.fog = false;
@@ -636,6 +664,23 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     }
   }
 
+  // featured together / apart: also on a single-direction line when lines exist
+  for (const m of ['together', 'apart'] as const) {
+    if (!mech.has(m) || !mech.has('line') || !(opts.feature ?? []).includes(m)) continue;
+    if (cells.some((c) => c.clue?.k === 'line' && c.clue.mod === m)) continue;
+    for (const i of rng.shuffle(safe())) {
+      if (cells[i].extra || (cells[i].clue && cells[i].clue!.k !== 'num') || cells[i].clue?.mod) continue;
+      const d = [0, 1, 2, 3, 4, 5].find((dd) => {
+        const seq = ray(b, i, dd);
+        const v = seq.filter((j) => gem[j]).length;
+        return seq.length >= 3 && v >= 2 && (m === 'together') === (runsOfGems(seq, gem, false) === 1);
+      });
+      if (d === undefined) continue;
+      cells[i].clue = { k: 'line', dirs: [d], mod: m };
+      break;
+    }
+  }
+
   // --- rotating and switching cells (cycle lengths 2 / 3: the period stays <= 6)
   if (mech.has('rotate')) {
     const k = cx.teach.has('rotate') ? NT : 1 + rng.int(2);
@@ -645,15 +690,27 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
       if (made >= k) break;
       const c = cells[i];
       if (c.extra || c.lock || c.clue?.mod) continue;
+      if ((level.portals ?? []).some(([q, r]) => q === c.q && r === c.r)) continue; // portals stay put
       const nbDirs = [0, 1, 2, 3, 4, 5].filter(
         (d) => b.index.has(key(c.q + DIRS[d][0], c.r + DIRS[d][1])) && !level.walls.some(([q, r, e]) => edgeKey(q, r, e) === edgeKey(c.q, c.r, d)),
       );
       if (nbDirs.length < 3) continue;
       const dk = dirKinds.length ? rng.pick(dirKinds) : undefined;
       const clue = dk ? specialClue(cx, b, i, gem, dk, 0) : null;
-      for (const d of rng.shuffle(nbDirs).slice(0, 1 + rng.int(2))) level.walls.push([c.q, c.r, d]); // owned: turns with the cell
-      c.rot = rng.pick([[0, 1], [0, 2], [0, 3], [0, 2, 4], [0, 1, 2]]);
+      const rot = rng.pick([[0, 1], [0, 2], [0, 3], [0, 2, 4], [0, 1, 2]]);
+      const own = rng.shuffle(nbDirs).slice(0, 1 + rng.int(2));
+      const oldClue = c.clue;
+      for (const d of own) level.walls.push([c.q, c.r, d]); // owned: turns with the cell
+      c.rot = rot;
       if (clue) c.clue = clue;
+      // every orientation must still show something
+      const bt = buildBoard(level);
+      if (rot.some((_, t) => !(cellConstraints(bt, i, t)[0]?.cells.length))) {
+        level.walls.splice(level.walls.length - own.length, own.length);
+        delete c.rot;
+        c.clue = oldClue;
+        continue;
+      }
       made++;
     }
   }
@@ -750,11 +807,15 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const compOf = (i: number) => unitComps.findIndex((s) => s.has(i));
   const crossInfo = CROSS_ISLAND.some((m) => mech.has(m));
   const nStarts = opts.starts ?? (unitComps.length > 1 && !crossInfo ? Math.min(3, unitComps.length) : 1);
-  // a start whose number is 0 opens the board (like a first click); prefer those
+  // a start whose number is 0 opens the board (like a first click): preferred on easy levels only,
+  // harder levels start anywhere (no big opening cascade)
+  const preferZero = T <= 1 || isTeach;
   const startCands = () => {
     const c = rng.shuffle(safe().filter((i) => !cells[i].lock && !cells[i].extra && !cells[i].rot && !cells[i].alt));
     const zero = (i: number) => (!cells[i].clue || cells[i].clue!.k === 'num') && b.phases[0].adj[i].every((j) => !cells[j].gem);
-    return [...c.filter(zero), ...c.filter((i) => !zero(i))];
+    const z = c.filter(zero), nz = c.filter((i) => !zero(i));
+    // harder levels try a few arbitrary starts first, zero cells as the fallback
+    return preferZero ? [...z, ...nz] : [...nz.slice(0, 5), ...z, ...nz.slice(5)];
   };
   if (!startCands().some((i) => b.phases[0].adj[i].every((j) => !cells[j].gem))) {
     // no zero cell: clear the neighbourhood of an interior cell
@@ -775,7 +836,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   let bestStarts: number[] = [];
   let tried = 0;
   for (const s0 of startCands()) {
-    if (tried++ >= 10) break;
+    if (tried++ >= 12) break;
     const s = [s0];
     if (nStarts > 1) {
       const usedComps = new Set([compOf(s0)]);
@@ -790,24 +851,29 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     setStarts(s);
     const r = solve(level, { ...sOpts, trace: true });
     const p = progress(r);
-    if (p > best) {
+    // among solvable starts: closest to the target rating first, then the smallest opening cascade
+    const better = () => {
+      const dr = Math.abs(r.difficulty - T), db = Math.abs(rep!.difficulty - T);
+      return dr < db || (dr === db && openingShare(r, n) < openingShare(rep!, n));
+    };
+    if (p > best || (r.solved && rep?.solved && better())) {
       best = p;
       rep = r;
       bestStarts = s.slice();
-      if (r.solved) break;
     }
+    if (rep?.solved && (T <= 1 || isTeach || tried >= 6)) break;
   }
   if (!rep) return null;
   setStarts(bestStarts);
 
   // --- repair: toggle frontier cells (crystal <-> safe) while that lets the solver get further
   const density = opts.density ?? 0.27;
-  const repairs = Math.round(Math.max(45, Math.min(160, n * 0.6)) * (relaxed ? 1.5 : 1));
+  const repairs = Math.round(Math.min(Math.max(45, Math.min(160, n * 0.6)), opts.budget ? opts.budget * 0.3 : Infinity) * (relaxed ? 1.5 : 1));
   const tabu: number[] = [];
   let stall = 0;
   let noFront = 0;
   let extraStarts = n >= 120 || relaxed ? Math.max(0, 3 - bestStarts.length) : 0; // big boards may get 2–3 starts
-  for (let it = 0; !rep.solved; it++) {
+  for (let it = 0; !rep.solved && !spent(); it++) {
     if (it >= repairs) {
       if (!extraStarts) break;
       // add a start in the unknown part (a zero cell when possible) and go on repairing
@@ -918,7 +984,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     const cand = rng.shuffle(safe().filter((i) => !isProtected(i) && !cells[i].lock && !cells[i].rot && !cells[i].alt && (!cells[i].clue || (cells[i].clue.k === 'num' && !cells[i].clue.mod))));
     let tries = 0;
     for (const i of cand) {
-      if (gemsNow >= goal || tries++ > n / 2) break;
+      if (gemsNow >= goal || spent() || tries++ > Math.min(n / 2, opts.budget ? opts.budget * 0.15 : Infinity)) break;
       const snapshot = JSON.stringify(level);
       cells[i].gem = true;
       delete cells[i].clue;
@@ -938,7 +1004,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
 
   // --- minimisation: remove information while the rating stays within the target
   const safeNow = safe();
-  const maxBlanks = Math.round(safeNow.length * (isTeach ? 0.45 : T <= 2 ? 0.1 : T <= 4 ? 0.22 : T <= 6 ? 0.35 : 0.5));
+  const maxBlanks = Math.round(safeNow.length * (isTeach ? 0.45 : T <= 2 ? 0.1 : T <= 4 ? 0.25 : T <= 6 ? 0.55 : 0.65));
   let blanks = cells.filter((c) => c.clue?.k === 'blank').length;
   type Item = { tags: MechanicId[]; blank?: boolean; free?: () => boolean; apply: () => (() => void) | null };
   const items: Item[] = [];
@@ -1044,14 +1110,14 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   let teachDone = !teach.length;
   const feature = new Set<MechanicId>((opts.feature ?? []).filter((m) => mech.has(m)));
   let solves = 0;
-  const maxSolves = n > 140 ? 90 : n > 90 ? 160 : Infinity;
+  const maxSolves = Math.min(n > 140 ? 90 : n > 90 ? 160 : Infinity, opts.budget ? Math.round(opts.budget * 0.45) : Infinity);
   for (const it of order) {
     const cap = teachDone ? T + slack : T + slack + 1;
     if (it.tags.some((t) => cx.teach.has(t))) continue;
     if (it.tags.some((t) => feature.has(t) && mechanicCount(level, t) <= 1)) continue;
     if (it.blank && blanks >= maxBlanks) continue;
     const free = it.free?.() ?? false;
-    if (!free && solves >= maxSolves) continue;
+    if (!free && (solves >= maxSolves || spent())) continue;
     const undo = it.apply();
     if (!undo) continue;
     if (free) {
@@ -1067,11 +1133,63 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
       if (!teachDone && r.difficulty <= T + slack) teachDone = teachSatisfied(level, teach, r, mech, maxTier);
     } else undo();
   }
+  // hardening (hard targets still below the target): turn safe number cells into crystals when
+  // that makes the solution need more hard steps (bottlenecks), up to a few points of density
+  if (T >= 2 && rep.difficulty < T - (T >= 6 || T <= 3 ? 0 : 1)) {
+    const hardness = (r: DetailedReport) => r.difficulty * 100 + r.tierCounts[2] * 3 + r.tierCounts[3] * 5 + r.tierCounts[1];
+    let cur = solve(level, { ...sOpts, trace: true });
+    if (cur.solved) {
+      rep = cur;
+      computeUsed(rep);
+      const maxGems = Math.round(Math.min(0.37, density + 0.04) * n);
+      const cand = rng.shuffle(safe().filter((i) => !isProtected(i) && !cells[i].lock && !cells[i].rot && !cells[i].alt && (!cells[i].clue || cells[i].clue.k === 'num' || cells[i].clue.k === 'blank')));
+      let tries = 0;
+      const limit = Math.min(opts.budget ? opts.budget * 0.1 : T <= 3 ? 90 : 60, T <= 3 ? n * 1.5 : n / 2);
+      for (let ci = 0; ci < cand.length * 2; ci++) {
+        const i = cand[ci % cand.length];
+        if (rep.difficulty >= T || spent() || tries++ > limit) break;
+        if (cells[i].gem || cells[i].start) continue;
+        const snapshot = JSON.stringify(level);
+        // over the density cap: swap with a crystal instead (keeps the density)
+        if (cells.filter((c) => c.gem).length >= maxGems) {
+          const g = rng.pick(cells.map((c, j) => (c.gem && !isProtected(j) && !c.clue ? j : -1)).filter((j) => j >= 0));
+          if (g === undefined) break;
+          cells[g].gem = false;
+        }
+        cells[i].gem = true;
+        delete cells[i].clue;
+        sanitize(level);
+        const r = solve(level, { ...sOpts, trace: true });
+        if (r.solved && r.difficulty <= T + slack && hardness(r) > hardness(rep)) {
+          rep = r;
+          computeUsed(r);
+        } else {
+          const back = JSON.parse(snapshot) as Level;
+          cells.splice(0, n, ...back.cells);
+          level.links = back.links;
+          level.zones = back.zones;
+        }
+      }
+    }
+  }
   // verify the final level (free removals assumed an unchanged path)
   rep = solve(level, { ...sOpts, trace: true });
   if (!rep.solved) return null;
   level.diff = rep.difficulty;
-  return { level, report: rep, teachOK: teachSatisfied(level, teach, rep, mech, maxTier) };
+  // penalties for the attempt ranking
+  let penalty = 0;
+  if (T >= 4) penalty += Math.max(0, openingShare(rep, n) - 0.5) * 4;
+  penalty += Math.max(0, cells.filter((c) => c.start).length - nStarts) * 1.5; // extra starts are a last resort
+  for (const m of opts.feature ?? []) {
+    if (!mech.has(m) || STRUCTURAL.includes(m) || mechanicCount(level, m) === 0 || spent()) continue;
+    const without = solve(level, { ...sOpts, exclude: m });
+    if (without.solved && hardSteps(without) <= hardSteps(rep)) penalty += 0.75; // the mechanic is not needed
+  }
+  if (isTeach && !STRUCTURAL.includes(teach[0])) {
+    const bt = buildBoard(level);
+    if (!rep.events.some((e) => e.tier >= 2 && e.reasons.some((c) => constraintMechanics(bt, c).includes(teach[0])))) penalty += 0.4;
+  }
+  return { level, report: rep, teachOK: teachSatisfied(level, teach, rep, mech, maxTier), penalty };
 }
 
 export function generateLevel(opts: GenOptions): Level {
@@ -1082,14 +1200,17 @@ export function generateLevel(opts: GenOptions): Level {
   let best: Built | null = null;
   let bestScore = Infinity;
   // count-based budget: once spent, keep the best layout found so far (deterministic, unlike a timer)
-  const budget = Math.round(400 + 10 * Math.min(300, opts.size)) * (opts.teach?.length ? 2 : 1);
+  const budget = opts.budget ?? Math.round(400 + 10 * Math.min(300, opts.size)) * (opts.teach?.length ? 2 : 1);
   work = 0;
-  for (let a = 0; a < attempts && !(best && work > budget); a++) {
+  let extra = 0;
+  for (let a = 0; (a < attempts || (best && best.level.diff! < T - 2 && extra++ < 3 && work < budget * 1.3)) && !(best && work > budget * (a < attempts ? 1 : 1.3)); a++) {
+    workLimit = opts.budget ? Math.max(work + 30, Math.min(work + opts.budget * 0.7, opts.budget)) : Infinity;
     const rng = makeRng(hashString(`${seedNum}:${a}`));
     const built = attempt(opts, rng, T, maxTier);
     if (!built) continue;
     const d = built.level.diff!;
-    const score = Math.max(0, Math.abs(d - T) - (T <= 2 ? 0 : 1)) + (built.teachOK ? 0 : 20) + Math.abs(d - T) * 0.01;
+    const tol = opts.tolerance ?? (T <= 2 ? 0 : 1);
+    const score = Math.max(0, Math.abs(d - T) - tol) + (built.teachOK ? 0 : 20) + built.penalty + Math.abs(d - T) * 0.01;
     if (score < bestScore) {
       best = built;
       bestScore = score;
@@ -1098,9 +1219,11 @@ export function generateLevel(opts: GenOptions): Level {
   }
   // last resort before the plain fallback: longer repairs, a second / third start allowed
   for (let a = 0; !best && a < 4; a++) {
+    workLimit = opts.budget ? work + opts.budget : Infinity;
     const built = attempt(opts, makeRng(hashString(`${seedNum}:relaxed:${a}`)), T, maxTier, true);
     if (built) best = built;
   }
+  workLimit = Infinity;
   if (!best) return fallbackLevel(opts, seedNum);
   const level = best.level;
   level.seed = seedNum;
@@ -1152,16 +1275,18 @@ export function dailyLevel(dateISO: string): Level {
     special: 0.15 + rng.next() * 0.06,
     mechanics,
     targetDifficulty: 5,
+    attempts: 4,
+    budget: 450,
   });
 }
 
 export type EndlessDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
-const ENDLESS: Record<EndlessDifficulty, { size: [number, number]; target: number; mechs: [number, number]; density: [number, number] }> = {
-  easy: { size: [30, 50], target: 2, mechs: [0, 2], density: [0.2, 0.24] },
-  medium: { size: [45, 70], target: 5, mechs: [2, 4], density: [0.25, 0.29] },
-  hard: { size: [60, 90], target: 7, mechs: [3, 5], density: [0.29, 0.32] },
-  expert: { size: [70, 110], target: 10, mechs: [4, 6], density: [0.31, 0.34] },
+const ENDLESS: Record<EndlessDifficulty, { size: [number, number]; target: number; mechs: [number, number]; density: [number, number]; budget: number }> = {
+  easy: { size: [30, 50], target: 2, mechs: [0, 2], density: [0.2, 0.24], budget: 250 },
+  medium: { size: [45, 70], target: 5, mechs: [2, 4], density: [0.25, 0.29], budget: 350 },
+  hard: { size: [60, 90], target: 7, mechs: [3, 5], density: [0.29, 0.32], budget: 260 },
+  expert: { size: [75, 105], target: 10, mechs: [4, 6], density: [0.32, 0.35], budget: 210 },
 };
 
 export function endlessLevel(seed: number | string, difficulty: EndlessDifficulty, mechanics?: MechanicId[]): Level {
@@ -1178,5 +1303,7 @@ export function endlessLevel(seed: number | string, difficulty: EndlessDifficult
     special: 0.12 + rng.next() * 0.1,
     mechanics: mechs,
     targetDifficulty: cfg.target,
+    attempts: 3,
+    budget: cfg.budget,
   });
 }

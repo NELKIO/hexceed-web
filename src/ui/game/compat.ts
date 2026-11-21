@@ -123,3 +123,31 @@ export function portalsOf(level: Level): [number, number, number][] {
 export function fogEnabled(level: Level): boolean {
   return (level as unknown as { fog?: boolean }).fog !== false;
 }
+
+/**
+ * Restart a game in place. Uses the core's `resetGame` when present (clears danger, history,
+ * phase…); otherwise copies every field of a fresh game so nothing from the previous attempt
+ * (classic-mode danger / rewind history) survives.
+ */
+export function resetGameV2(game: Game, level: Level, mode: MistakeMode): void {
+  const f = g.resetGame;
+  if (f) {
+    try {
+      f(game);
+      return;
+    } catch {
+      /* fall back below */
+    }
+  }
+  const fresh = newGameV2(level, mode);
+  Object.assign(game, fresh, { board: game.board });
+}
+
+/** Portal flags as they stand in a phase (rotating cells carry their portals along). */
+export function portalsAtPhase(b: Board, level: Level, phase: number): [number, number, number][] {
+  const phases = (b as unknown as { phases?: { portals?: Set<string> }[]; period?: number }).phases;
+  const period = (b as unknown as { period?: number }).period ?? phases?.length ?? 1;
+  const geo = phases?.[((phase % period) + period) % period];
+  if (geo?.portals instanceof Set) return [...geo.portals].map((s) => s.split(',').map(Number) as [number, number, number]);
+  return portalsOf(level);
+}

@@ -77,6 +77,8 @@ export interface Settings {
   mistakeMode: 'gentle' | 'classic' | 'hardcore';
   /** Auto-rotate period in seconds for levels with phases (0 = off). */
   autoRotate: number;
+  /** Revealing a plain 0 opens its hidden neighbours (they are logically safe). */
+  autoZero: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   colorBlind: false,
   mistakeMode: 'gentle',
   autoRotate: 0,
+  autoZero: true,
 };
 
 export function loadSettings(): Settings {
@@ -153,6 +156,8 @@ export function markSeen(ids: MechanicId[]): void {
 
 export interface DailyResult extends Best {
   levelId: string;
+  /** Crystals on the board (for the statistics). */
+  gems?: number;
 }
 
 export function loadDaily(): Record<string, DailyResult> {
@@ -243,4 +248,54 @@ export function resetAll(): void {
   } catch {
     /* ignore */
   }
+}
+
+// ------------------------------------------------------------------ daily numbering, streaks, totals
+
+/** Launch day of the daily puzzle: puzzle №1. */
+export const DAILY_EPOCH = '2026-11-22';
+
+const dayNum = (iso: string): number => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Math.round(Date.UTC(y, (m || 1) - 1, d || 1) / 86400000);
+};
+
+/** Daily puzzle number (1 on the launch day). */
+export function dailyNumber(dateISO: string): number {
+  return Math.max(1, dayNum(dateISO) - dayNum(DAILY_EPOCH) + 1);
+}
+
+/** Current streak (consecutive solved days ending today, or yesterday when today is not solved yet) and the best one. */
+export function dailyStreak(todayISO: string): { current: number; best: number; solvedToday: boolean } {
+  const days = new Set(Object.keys(loadDaily()).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k)).map(dayNum));
+  const today = dayNum(todayISO);
+  const solvedToday = days.has(today);
+  let cur = 0;
+  for (let d = solvedToday ? today : today - 1; days.has(d); d--) cur++;
+  let best = 0;
+  for (const d of days) {
+    if (days.has(d - 1)) continue; // not the start of a run
+    let n = 0;
+    while (days.has(d + n)) n++;
+    best = Math.max(best, n);
+  }
+  return { current: cur, best: Math.max(best, cur), solvedToday };
+}
+
+export interface Totals {
+  wins: number;
+  time: number;
+  gems: number;
+  mistakes: number;
+}
+
+/** Lifetime totals of endless games (campaign and daily totals are derived from their records). */
+export function loadEndlessTotals(): Totals {
+  const v = read<Partial<Totals>>('endlessTotals', {});
+  return { wins: v.wins ?? 0, time: v.time ?? 0, gems: v.gems ?? 0, mistakes: v.mistakes ?? 0 };
+}
+
+export function addEndlessTotals(r: Omit<Totals, 'wins'>): void {
+  const s = loadEndlessTotals();
+  write('endlessTotals', { wins: s.wins + 1, time: s.time + r.time, gems: s.gems + r.gems, mistakes: s.mistakes + r.mistakes });
 }

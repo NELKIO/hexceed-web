@@ -117,3 +117,4 @@ export function LogoMark(p: P) {
     </svg>
   );
 }
+export const IconSpark = (p: P) => base([<path d="M10.5 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z" />, <path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" />], p);

@@ -6,6 +6,8 @@ import { setVolume, setVibration } from '../audio/sfx';
 let current: Settings = loadSettings();
 const subs = new Set<() => void>();
 let mql: MediaQueryList | null = null;
+const THEME_LIGHT = '#fbf7f1';
+const THEME_DARK = '#15131d';
 
 export function getSettings(): Settings {
   return current;
@@ -32,8 +34,12 @@ function apply(): void {
   root.dataset.theme = th;
   root.classList.toggle('cb', current.colorBlind);
   root.classList.toggle('lefty', current.leftHanded);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', th === 'dark' ? '#15131d' : '#fbf7f1');
+  // browser chrome colour: per scheme when "auto", the chosen theme's colour otherwise
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    const media = meta.getAttribute('media') ?? '';
+    const scheme = current.theme === 'auto' ? (media.includes('dark') ? 'dark' : media.includes('light') ? 'light' : th) : th;
+    meta.setAttribute('content', scheme === 'dark' ? THEME_DARK : THEME_LIGHT);
+  });
 }
 
 export function initSettings(): void {

@@ -14,7 +14,7 @@
 // The global counter is never enumerated cell by cell: cells outside the combined constraints are
 // summarised as one "outside" region of known size.
 
-import { buildBoard, cellConstraintsAll, chainFlood, effectiveClue, feasible, hasFog, rayInfo, staticConstraints, type Board, type Constraint } from './rules';
+import { buildBoard, cellConstraintsAll, chainFlood, effectiveClue, eyeRayCounts, feasible, hasFog, rayInfo, staticConstraints, type Board, type Constraint } from './rules';
 import type { Level, MechanicId } from './types';
 
 export type Tier = 1 | 2 | 3 | 4;
@@ -1043,33 +1043,60 @@ function cellOptions(c: Constraint, vals: Int8Array, out: Uint8Array): boolean {
     return true;
   }
   if (c.kind === 'eye' && c.rays!.reduce((s, r) => s + r.length, 0) === c.cells.length) {
-    // disjoint rays (no big cell seen twice); a ray sees a crystal iff it contains one
-    let lo = 0, hi = 0;
+    // disjoint rays: per ray the achievable visible counts K_r; cell x at position p of ray r can be
+    // safe iff some k in K_r, k != p fits with the other rays, a crystal iff some k <= p fits
     const rays = c.rays!;
-    const st = [0, 0, 0, 0, 0, 0];
-    const unk = [0, 0, 0, 0, 0, 0];
-    for (let d = 0; d < rays.length; d++) {
-      let s = 0, u = 0;
-      for (const j of rays[d]) {
-        const v = vals[j];
-        if (v === 1) s = 1;
-        else if (v === -1) u++;
+    const K = rays.map((r) => eyeRayCounts(r, vals));
+    const totalLen = rays.reduce((a, r) => a + r.length, 0);
+    const sums = (skip: number): boolean[] => {
+      if (totalLen <= 30) {
+        let bits = 1;
+        for (let t = 0; t < rays.length; t++) {
+          if (t === skip) continue;
+          let next = 0;
+          for (const k of K[t]) next |= bits << k;
+          bits = next;
+        }
+        const out: boolean[] = [];
+        for (let x = 0; x <= totalLen; x++) out.push(((bits >>> x) & 1) === 1);
+        return out;
       }
-      if (s === 0 && u > 0) s = 2;
-      st[d] = s;
-      unk[d] = u;
-      if (s === 1) lo++, hi++;
-      else if (s === 2) hi++;
+      let reach = [true];
+      for (let t = 0; t < rays.length; t++) {
+        if (t === skip) continue;
+        const next: boolean[] = new Array(reach.length + rays[t].length).fill(false);
+        for (let s0 = 0; s0 < reach.length; s0++) if (reach[s0]) for (const k of K[t]) next[s0 + k] = true;
+        reach = next;
+      }
+      return reach;
+    };
+    const V = c.value;
+    let any = false;
+    // when every ray's counts form an interval, the other rays' sums form an interval too
+    let lo = 0, hi = 0, intervals = true;
+    for (const ks of K) {
+      lo += ks[0];
+      hi += ks[ks.length - 1];
+      if (ks[ks.length - 1] - ks[0] !== ks.length - 1) intervals = false;
     }
-    const v = c.value;
-    if (v < lo || v > hi) return false;
-    for (let d = 0; d < rays.length; d++) {
-      if (!unk[d]) continue;
-      let o = 3;
-      if (st[d] === 2) o = (unk[d] >= 2 || v <= hi - 1 ? 1 : 0) | (v >= lo + 1 ? 2 : 0);
-      for (const j of rays[d]) if (vals[j] === -1) out[j] = o;
+    for (let t = 0; t < rays.length; t++) {
+      const r = rays[t];
+      let fits: number[];
+      if (intervals) {
+        const restLo = lo - K[t][0], restHi = hi - K[t][K[t].length - 1];
+        fits = K[t].filter((k) => V - k >= restLo && V - k <= restHi);
+      } else {
+        const rest = sums(t);
+        fits = K[t].filter((k) => V - k >= 0 && rest[V - k]);
+      }
+      if (fits.length) any = true;
+      for (let p = 0; p < r.length; p++) {
+        const x = r[p];
+        if (vals[x] !== -1) continue;
+        out[x] = (fits.some((k) => k !== p) ? 1 : 0) | (fits.some((k) => k <= p) ? 2 : 0);
+      }
     }
-    return true;
+    return rays.length ? any : V === 0;
   }
   if (c.kind === 'chain') return chainOptions(c, vals, out);
   if (!feasible(c, vals)) return false;
@@ -1121,7 +1148,7 @@ function chainOptions(c: Constraint, vals: Int8Array, out: Uint8Array): boolean 
     for (const x of region) if (seeds.has(x) || g[x].some((y) => inCounted.has(y))) out[x] = 1;
     return true;
   }
-  if (region.length > 40) return true;
+  if (region.length > 16) return true;
   for (const x of region) {
     let o = 0;
     vals[x] = 0;
@@ -1200,7 +1227,9 @@ export function solveDetailed(level: Level, opts: SolveOptions = {}): DetailedRe
   const cells = level.cells;
   const maxTier = opts.maxTier ?? 4;
   const vals = new Int8Array(n).fill(-1);
-  for (let i = 0; i < n; i++) if (!cells[i].gem && (cells[i].start || cells[i].lock)) vals[i] = 0;
+  // exclude 'lock': locked cells are treated as ordinary hidden cells
+  const lockOn = opts.exclude !== 'lock';
+  for (let i = 0; i < n; i++) if (!cells[i].gem && (cells[i].start || (lockOn && cells[i].lock))) vals[i] = 0;
   const ctx = new Ctx(board, vals);
   const opened = new Uint8Array(n);
   let marked = 0;
@@ -1214,7 +1243,7 @@ export function solveDetailed(level: Level, opts: SolveOptions = {}): DetailedRe
     if (c.src.type === 'global' && opts.noGlobal) return;
     if (ex) {
       const tags = constraintMechanics(board, c);
-      if (tags.includes(ex)) {
+      if (tags.includes(ex) && ex !== 'lock') {
         if (ex === 'together' || ex === 'apart') {
           const { mod: _m, ...rest } = c;
           void _m;
@@ -1239,7 +1268,7 @@ export function solveDetailed(level: Level, opts: SolveOptions = {}): DetailedRe
     for (const c of cellConstraintsAll(board, i)) addC(c);
   };
   const locks: number[] = [];
-  for (let i = 0; i < n; i++) if (cells[i].lock && !cells[i].gem) locks.push(i);
+  if (lockOn) for (let i = 0; i < n; i++) if (cells[i].lock && !cells[i].gem) locks.push(i);
   const openLocks = () => {
     for (const i of locks) if (!opened[i] && marked >= cells[i].lock!) reveal(i);
   };
@@ -1322,10 +1351,11 @@ export function solveDetailed(level: Level, opts: SolveOptions = {}): DetailedRe
 export function rateDifficulty(n: number, tc: readonly number[]): number {
   const [, t2, t3, t4] = tc;
   // hard steps per "screen": a 250-hex board with three times the steps of a 70-hex one is longer, not harder
-  const hard = (t2 + 2.6 * t3 + 5 * t4) * Math.sqrt(70 / Math.max(70, n));
-  let d = 1 + 1.75 * Math.log(1 + hard / 1.6) + 0.45 * Math.log(1 + n / 40);
-  if (t3 > 0) d += 0.3;
-  if (t4 > 0) d += 0.6;
+  // (three-clue / counter steps and contradiction chains weigh most: they are what stalls a player)
+  const hard = (t2 + 3.5 * t3 + 8 * t4) * Math.sqrt(70 / Math.max(70, n));
+  let d = 1 + 1.9 * Math.log(1 + hard / 1.6) + 0.45 * Math.log(1 + n / 40);
+  if (t3 > 0) d += 0.4;
+  if (t4 > 0) d += 0.8;
   return Math.max(1, Math.min(10, Math.round(d)));
 }
 

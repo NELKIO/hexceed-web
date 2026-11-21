@@ -17,6 +17,8 @@ export function HexBackground({ density = 1 }: { density?: number }) {
     if (!ctx) return;
     let raf = 0, w = 0, h = 0, dpr = 1, last = 0;
     let centers: [number, number][] = [];
+    /** Hexes fully on screen: lit crystals never appear half cut off at an edge. */
+    let inner: [number, number][] = [];
     const glows: Glow[] = [];
     let nextGlow = 0;
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -46,6 +48,7 @@ export function HexBackground({ density = 1 }: { density?: number }) {
       const dx = R * 1.5, dy = R * Math.sqrt(3);
       for (let c = -1; c * dx < w + R * 2; c++)
         for (let r = -1; r * dy < h + R * 2; r++) centers.push([c * dx, r * dy + (c & 1 ? dy / 2 : 0)]);
+      inner = centers.filter(([x, y]) => x > R && x < w - R && y > R && y < h - R);
       readColors();
     };
 
@@ -113,8 +116,8 @@ export function HexBackground({ density = 1 }: { density?: number }) {
       raf = requestAnimationFrame(loop);
       if (now - last < 33) return; // ~30 fps is plenty for a background
       last = now;
-      if (now > nextGlow && centers.length) {
-        const [x, y] = centers[Math.floor(Math.random() * centers.length)];
+      if (now > nextGlow && inner.length) {
+        const [x, y] = inner[Math.floor(Math.random() * inner.length)];
         glows.push({ x, y, t0: now, dur: 2600 + Math.random() * 1800 });
         nextGlow = now + 500 + Math.random() * 900;
       }

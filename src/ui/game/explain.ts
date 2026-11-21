@@ -81,7 +81,7 @@ export function explain(g: Game, d: Deduction, vals: Int8Array): string {
       if (d.tier >= 4) return t('h_tryContra', { other, a: src, cell });
       return t('h_generic', { src, cell });
     }
-    if (c.kind === 'eye') return t('h_eye', { src, v: c.value, cell });
+    if (c.kind === 'eye') return t('h_eye', { src, v: c.value, cellsWord: plural(c.value, 'cells1', 'cells2', 'cells5'), cell });
     if (c.kind === 'parity') return t('h_parity', { src, cell });
     if (c.kind === 'link') return t(c.value ? 'h_linkSame' : 'h_linkDiff', { cell });
     return t('h_generic', { src, cell });

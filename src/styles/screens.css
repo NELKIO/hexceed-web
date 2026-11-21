@@ -747,3 +747,181 @@
 .mini-counter b {
   animation: countPop 0.4s var(--ease-spring);
 }
+
+.w-summary {
+  margin: -4px 2px 2px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* how to play: mechanics list with glyph icons; unseen ones locked */
+.mlist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13.5px;
+  font-weight: 800;
+  text-align: left;
+  color: var(--ink);
+  transition: transform 0.15s var(--ease-spring);
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
+.mrow:active {
+  transform: scale(0.96);
+}
+
+.mrow .mech-ic {
+  width: 42px;
+  height: 44px;
+  flex: none;
+  overflow: visible;
+}
+
+.mr-t {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.mrow.locked {
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.mr-lock {
+  width: 42px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+}
+
+.mr-lock svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mr-q {
+  font-family: var(--display);
+  font-size: 15px;
+}
+
+.mrow.locked small {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mech-ic .mi-gap {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 2.4;
+  stroke-dasharray: 6 6;
+}
+
+.mech-ic .mi-rot {
+  fill: none;
+  stroke: var(--violet);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.mech-ic .mi-big {
+  stroke: none;
+}
+
+/* landscape phones: the explainer card lays out side by side and fits without scrolling */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sheet.explainer {
+    max-width: 680px;
+  }
+
+  .explainer .ex-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .explainer .ex-art {
+    flex: 0 0 44%;
+    height: min(190px, calc(100vh - 150px));
+  }
+
+  .explainer .ex-text {
+    text-align: left;
+    padding: 0;
+  }
+
+  .explainer .ex-text h2 {
+    font-size: 18px;
+    text-align: left;
+  }
+
+  .explainer .ex-text p {
+    font-size: 14px;
+    line-height: 1.42;
+  }
+
+  .explainer .ex-text .ex-sub {
+    font-size: 13px;
+  }
+}
+
+.mlocked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.ml-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ml-cap svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.ml-hexes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ml-hex {
+  width: 26px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-3);
+  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+}

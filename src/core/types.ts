@@ -13,7 +13,7 @@ export type ClueKind =
   | 'swirl' // walk around a pivot hex (see MECHANICS.md), a wall ends the walk
   | 'island' // crystals in the wall-bounded region reachable from the cell
   | 'chain' // crystals in the crystal clusters touching the cell (non-linear)
-  | 'eye' // number of the 6 directions that see a crystal along the ray (walls stop)
+  | 'eye' // field of view: hexes seen along the 6 rays before the first crystal or a wall
   | 'parity' // even / odd number of crystals among neighbours
   | 'blank'; // no information
 

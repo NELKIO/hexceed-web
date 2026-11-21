@@ -5,7 +5,7 @@ import { goBack } from '../../router';
 import { Segmented, Sheet, Slider, Toggle, TopBar } from '../components/ui';
 import { updateSettings, useSettings } from '../settings';
 import { resetAll } from '../../storage';
-import { IconAuto, IconEye, IconGlobe, IconHand, IconMoon, IconPalette, IconRotate, IconShield, IconSun, IconTrash, IconVibrate, IconVolume, LogoMark } from '../icons';
+import { IconAuto, IconEye, IconGlobe, IconHand, IconMoon, IconPalette, IconRotate, IconShield, IconSpark, IconSun, IconTrash, IconVibrate, IconVolume, LogoMark } from '../icons';
 import { sfx } from '../../audio/sfx';
 import { SyncRow } from '../online/entry';
 
@@ -71,14 +71,17 @@ export function SettingsScreen() {
               ]}
             />
           </Row>
+          <Row icon={<IconSpark />} title={t('autoZero')} sub={t('autoZeroSub')}>
+            <Toggle on={s.autoZero} label={t('autoZero')} onChange={(autoZero) => updateSettings({ autoZero })} />
+          </Row>
           <Row icon={<IconRotate />} title={t('autoRotate')} sub={t('autoRotateSub')} stack>
             <Segmented
               value={String(s.autoRotate) as '0' | '15' | '30'}
               onChange={(v) => updateSettings({ autoRotate: Number(v) })}
               options={[
                 { v: '0', label: t('autoOff') },
-                { v: '15', label: '15 s' },
-                { v: '30', label: '30 s' },
+                { v: '15', label: t('sec', { n: 15 }) },
+                { v: '30', label: t('sec', { n: 30 }) },
               ]}
             />
           </Row>

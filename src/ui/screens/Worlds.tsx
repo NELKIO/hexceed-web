@@ -1,11 +1,11 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
-import { getLang, t } from '../../i18n';
+import { getLang, plural, t } from '../../i18n';
 import { goBack, navigate } from '../../router';
 import { sfx } from '../../audio/sfx';
 import { TopBar, Stars } from '../components/ui';
 import { IconChevron, IconLock, IconStar } from '../icons';
-import { WORLDS, worldNeeded, worldUnlocked } from '../../levels';
+import { useCampaign, WORLDS, worldNeeded, worldUnlocked } from '../../levels';
 import { loadBest, loadProgress } from '../../storage';
 import { campaignStats, continueTarget } from '../progress';
 import { mechTitle } from '../mechanics';
@@ -28,6 +28,7 @@ function LevelHex({ n, stars, done, current, started, onClick }: { n: number; st
 
 export function WorldsScreen() {
   useSettings();
+  useCampaign();
   const lang = getLang();
   const best = loadBest();
   const isDone = (id: string) => !!best[id];
@@ -42,13 +43,14 @@ export function WorldsScreen() {
           title={t('campaign')}
           onBack={() => goBack('/')}
           right={
-            <div class="pill stars-pill">
+            <div class="pill stars-pill" title={`${st.stars} / ${st.maxStars}`}>
               <IconStar />
               <b>{st.stars}</b>
-              <small>/{st.maxStars}</small>
+              <small>{plural(st.stars, 'mf_star1', 'mf_star2', 'mf_star5')}</small>
             </div>
           }
         />
+        <p class="w-summary">{t('mf_worldsSummary', { done: st.done, total: st.total, levels: plural(st.total, 'mf_lvlOf1', 'mf_lvlOf5', 'mf_lvlOf5') })}</p>
         <div class="wlist">
           {WORLDS.map((w, wi) => {
             const unlocked = worldUnlocked(wi, isDone);
@@ -77,9 +79,13 @@ export function WorldsScreen() {
                       {unlocked
                         ? w.mechanics
                             .slice(0, 4)
-                            .map((m) => t(mechTitle(m)).replace(/ \{n\}| -n-/, ''))
+                            .map((m) => t(mechTitle(m)))
                             .join(' · ')
-                        : t('unlockHint', { n: worldNeeded(wi), world: WORLDS[wi - 1]?.title[lang] ?? '' })}
+                        : t('unlockHint', {
+                            n: worldNeeded(wi),
+                            levels: `${worldNeeded(wi)} ${plural(worldNeeded(wi), 'mf_lvl1', 'mf_lvl2', 'mf_lvl5')}`,
+                            world: WORLDS[wi - 1]?.title[lang] ?? '',
+                          })}
                     </span>
                   </span>
                   <span class="w-side">

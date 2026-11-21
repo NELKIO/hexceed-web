@@ -46,3 +46,26 @@ export function plural(n: number, one: TKey, few: TKey, many: TKey): string {
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return t(few);
   return t(many);
 }
+
+/** Russian plural form index for n: 0 = one (1, 21…), 1 = few (2–4, 22–24…), 2 = many (0, 5–20, 25…). */
+export function ruPluralIndex(n: number): 0 | 1 | 2 {
+  const a = Math.abs(Math.trunc(n));
+  const m10 = a % 10, m100 = a % 100;
+  if (m10 === 1 && m100 !== 11) return 0;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 1;
+  return 2;
+}
+
+/**
+ * Word for a count from a "|"-separated dictionary entry: ru "уровень|уровня|уровней",
+ * en "level|levels". `pn(5, 'pl_level')` → "5 уровней".
+ */
+export function pw(n: number, k: TKey): string {
+  const forms = t(k).split('|');
+  if (lang === 'en') return forms[Math.abs(n) === 1 ? 0 : forms.length - 1];
+  return forms[Math.min(ruPluralIndex(n), forms.length - 1)];
+}
+
+export function pn(n: number, k: TKey): string {
+  return `${n} ${pw(n, k)}`;
+}

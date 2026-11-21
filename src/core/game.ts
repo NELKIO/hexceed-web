@@ -83,6 +83,25 @@ export function newGame(level: Level, opts: GameOptions | number = {}): Game {
   return g;
 }
 
+/** Restart in place: the initial position again, counters, danger, history and phase cleared. */
+export function resetGame(g: Game, now = Date.now()): void {
+  const level = g.board.level;
+  g.state.fill(CellState.Hidden);
+  level.cells.forEach((c, i) => {
+    if (c.start && !c.gem) g.state[i] = CellState.Revealed;
+  });
+  g.mistakes = 0;
+  g.hintsUsed = 0;
+  g.marked = 0;
+  g.moves = 0;
+  g.startedAt = now;
+  g.finishedAt = 0;
+  g.danger = 0;
+  g.history = [];
+  g.phase = 0;
+  openLocks(g);
+}
+
 export function isLocked(g: Game, i: number): boolean {
   const c = g.board.level.cells[i];
   return !!c.lock && g.state[i] === CellState.Hidden && g.marked < c.lock;
@@ -170,7 +189,7 @@ export function act(g: Game, i: number, a: Action, now = Date.now()): ActResult 
   g.history.push({ cell: i, opened });
   if (g.danger > 0) g.danger--;
   const won = isWon(g);
-  if (won) g.finishedAt = now;
+  if (won) g.finishedAt = now || 1; // finishedAt is also the "finished" flag
   const res: ActResult = { ok: true, opened, won };
   if (g.danger > 0) res.danger = true;
   return res;

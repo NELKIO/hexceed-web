@@ -6,7 +6,7 @@ import { CellState } from '../../core/types';
 import type { CellProps, Enter } from './Cell';
 import { edgeSegment, linkCurve, S, zoneBadge, type Layout } from './geometry';
 import type { Badge } from './Board';
-import { toPixel } from '../../core/hex';
+import { DIRS, toPixel } from '../../core/hex';
 import { clueAt, constraintsAt, displayAt, isRotating, isSwitching, levelHasPhases, phaseOf, rotOffset, visibleOf, type LooseClue } from './compat';
 
 export interface Pre {
@@ -23,6 +23,14 @@ export interface Pre {
   ownWalls: (string | undefined)[];
   /** Global walls (not owned by a rotating cell). */
   staticWalls: string;
+  /** The same walls one by one, with the units on both sides (-1 = none), for fog dimming. */
+  wallSegs: WallSeg[];
+}
+
+export interface WallSeg {
+  d: string;
+  a: number;
+  b: number;
 }
 
 export function precompute(b: Board, layout: Layout): Pre {
@@ -55,6 +63,7 @@ export function precompute(b: Board, layout: Layout): Pre {
   // walls: those listed with a rotating cell's hex rotate with it
   const own: string[][] = Array.from({ length: n }, () => []);
   let staticWalls = '';
+  const wallSegs: WallSeg[] = [];
   const seg = (a: [number, number], c: [number, number]) => {
     const k = 0.06;
     const ax = a[0] + (c[0] - a[0]) * k, ay = a[1] + (c[1] - a[1]) * k;
@@ -70,7 +79,11 @@ export function precompute(b: Board, layout: Layout): Pre {
       own[u].push(seg(a, c));
     } else {
       const [a, c] = edgeSegment(x, y, d, S);
-      staticWalls += seg(a, c);
+      const sd = seg(a, c);
+      staticWalls += sd;
+      const ua = u ?? -1;
+      const ub = layout.hexUnit.get(`${q + DIRS[d][0]},${r + DIRS[d][1]}`) ?? -1;
+      wallSegs.push({ d: sd, a: ua, b: ub });
     }
   }
   return {
@@ -84,6 +97,7 @@ export function precompute(b: Board, layout: Layout): Pre {
     badges,
     ownWalls: own.map((w) => (w.length ? w.join('') : undefined)),
     staticWalls,
+    wallSegs,
   };
 }
 

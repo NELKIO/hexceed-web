@@ -7,6 +7,14 @@ import { MiniBoard } from './MiniBoard';
 import { sfx } from '../../audio/sfx';
 import { IconArrow, IconCheck } from '../icons';
 
+const coarse = () => {
+  try {
+    return matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return true;
+  }
+};
+
 /** Bottom sheet that walks through one or more mechanic cards. */
 export function Explainer({ mechs, open, onClose }: { mechs: MechanicId[]; open: boolean; onClose: () => void }) {
   const [i, setI] = useState(0);
@@ -25,7 +33,7 @@ export function Explainer({ mechs, open, onClose }: { mechs: MechanicId[]; open:
         <div class="ex-text">
           <h2>{t(mechTitle(m))}</h2>
           <p>{t(mechDesc(m))}</p>
-          {m === 'basic' && <p class="ex-sub">{t('howStep2')}</p>}
+          {m === 'basic' && <p class="ex-sub">{t(coarse() ? 'exMarkTouch' : 'exMarkMouse')}</p>}
         </div>
       </div>
       {mechs.length > 1 && (

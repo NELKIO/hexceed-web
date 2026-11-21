@@ -107,7 +107,20 @@ async function loadGen(): Promise<GenMod | null> {
   }
 }
 
-function sampleFor(seed: string, prefix: string): Level {
+// A one-shot notice for the next game screen (e.g. "generation failed, showing a backup puzzle").
+let notice: string | null = null;
+
+/** Take (and clear) the pending notice for the game screen. */
+export function takeNotice(): string | null {
+  const n = notice;
+  notice = null;
+  return n;
+}
+
+/** Generation failed: keep the player going with a handmade puzzle, but say so loudly. */
+function sampleFor(seed: string, prefix: string, why: unknown): Level {
+  console.error(`[hexlume] level generation failed for ${prefix}; using a backup puzzle`, why);
+  notice = 'genFallback';
   const pool = SAMPLES.filter((l) => l.id !== 's01');
   const base = pool[hashString(seed) % pool.length];
   return { ...base, id: prefix };
@@ -123,14 +136,15 @@ export async function makeDaily(dateISO: string): Promise<Level> {
   const w = await viaWorker({ type: 'daily', date: dateISO }, 20000);
   if (w) return { ...w, id };
   const g = await loadGen();
+  let why: unknown = 'worker gave no level';
   if (g?.dailyLevel) {
     try {
       return { ...g.dailyLevel(dateISO), id };
     } catch (e) {
-      console.warn('daily generator failed', e);
+      why = e;
     }
-  }
-  return sampleFor(dateISO, id);
+  } else why = 'generator module unavailable';
+  return sampleFor(dateISO, id, why);
 }
 
 export async function makeEndless(seed: string, diff: Difficulty): Promise<Level> {
@@ -138,12 +152,13 @@ export async function makeEndless(seed: string, diff: Difficulty): Promise<Level
   const w = await viaWorker({ type: 'endless', seed, difficulty: diff }, 25000);
   if (w) return { ...w, id };
   const g = await loadGen();
+  let why: unknown = 'worker gave no level';
   if (g?.endlessLevel) {
     try {
       return { ...g.endlessLevel(seed, diff), id };
     } catch (e) {
-      console.warn('endless generator failed', e);
+      why = e;
     }
-  }
-  return sampleFor(seed + diff, id);
+  } else why = 'generator module unavailable';
+  return sampleFor(seed + diff, id, why);
 }

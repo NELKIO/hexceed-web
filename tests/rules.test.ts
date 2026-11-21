@@ -140,30 +140,37 @@ describe('areas', () => {
   });
 });
 
-describe('eye', () => {
-  it('counts directions that see a crystal', () => {
+describe('eye (field of view)', () => {
+  it('counts the hexes seen before the first crystal', () => {
     const L = mk(hexCoords(2), [[0, -2], [0, -1], [2, 0]], { clues: { '0,0': { k: 'eye' } } });
     const b = buildBoard(L);
     const con = cellConstraints(b, idx(L, 0, 0))[0];
     expect(con.kind).toBe('eye');
-    expect(con.value).toBe(2); // N (two crystals, one direction) + SE
+    expect(con.value).toBe(9); // N sees 0, SE sees 1, the other four rays see 2 each
   });
-  it('walls block sight', () => {
-    const L = mk(hexCoords(2), [[0, -2], [2, 0]], { walls: [[0, 0, 0]], clues: { '0,0': { k: 'eye' } } });
-    const b = buildBoard(L);
-    expect(cellConstraints(b, idx(L, 0, 0))[0].value).toBe(1);
+  it('walls stop sight, gaps are jumped but not counted', () => {
+    const W = mk(hexCoords(2), [[0, -2], [2, 0]], { walls: [[0, 0, 0]], clues: { '0,0': { k: 'eye' } } });
+    expect(cellConstraints(buildBoard(W), idx(W, 0, 0))[0].value).toBe(9);
+    const O = mk(hexCoords(2), [[0, -2], [2, 0]], { clues: { '0,0': { k: 'eye' } } });
+    expect(cellConstraints(buildBoard(O), idx(O, 0, 0))[0].value).toBe(10);
+    const G = mk([[0, 0], [0, 1], [0, 3]], [], { clues: { '0,0': { k: 'eye' } } });
+    expect(cellConstraints(buildBoard(G), 0)[0].value).toBe(2);
   });
-  it('feasibility is exact: a known crystal behind an unknown cell already counts', () => {
-    const L = mk(hexCoords(2), [[0, -2]], { clues: { '0,0': { k: 'eye' } } });
+  it('partial feasibility is exact (per-ray counts + subset sum)', () => {
+    const L = mk(hexCoords(2), [], { clues: { '0,0': { k: 'eye' } } });
     const b = buildBoard(L);
     const con = cellConstraints(b, idx(L, 0, 0))[0];
     const v = unknown(b.n);
-    v[idx(L, 0, -2)] = 1; // far cell of the N ray is a crystal, near cell unknown
-    expect(feasible({ ...con, value: 0 }, v)).toBe(false);
-    expect(feasible({ ...con, value: 1 }, v)).toBe(true);
-    expect(feasible({ ...con, value: 6 }, v)).toBe(true);
-    for (let i = 0; i < b.n; i++) if (v[i] === -1 && i !== idx(L, 0, -1)) v[i] = 0;
-    expect(feasible({ ...con, value: 2 }, v)).toBe(false);
+    v[idx(L, 0, 0)] = 0;
+    for (let k = 0; k <= 12; k++) expect(feasible({ ...con, value: k }, v)).toBe(true);
+    v[idx(L, 0, -1)] = 1; // N ray blocked at once
+    expect(feasible({ ...con, value: 11 }, v)).toBe(false);
+    expect(feasible({ ...con, value: 10 }, v)).toBe(true);
+    v[idx(L, 0, -1)] = 0; // N ray sees 1 or 2
+    for (const r of con.rays!.slice(1)) for (const j of r) v[j] = 0; // the other five rays see 2 each
+    expect(feasible({ ...con, value: 10 }, v)).toBe(false);
+    expect(feasible({ ...con, value: 11 }, v)).toBe(true);
+    expect(feasible({ ...con, value: 12 }, v)).toBe(true);
   });
 });
 

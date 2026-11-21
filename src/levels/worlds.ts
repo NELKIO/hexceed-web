@@ -25,7 +25,7 @@ interface WorldDef {
 
 const DEFS: WorldDef[] = [
   { id: 'first-steps', title: { ru: 'Первые шаги', en: 'First Steps' }, accent: '#3aa6a0', introduces: ['basic', 'counter', 'fog'], count: 12 },
-  { id: 'walls-islands', title: { ru: 'Стены и острова', en: 'Walls & Islands' }, accent: '#e07a5f', introduces: ['walls', 'gaps'], count: 12 },
+  { id: 'walls-islands', title: { ru: 'Стены и пустоты', en: 'Walls & Gaps' }, accent: '#e07a5f', introduces: ['walls', 'gaps'], count: 12 },
   { id: 'rays', title: { ru: 'Лучи', en: 'Rays' }, accent: '#4f86c6', introduces: ['line', 'multiline', 'blank'], count: 12 },
   { id: 'circles', title: { ru: 'Круги', en: 'Circles' }, accent: '#9b6dd6', introduces: ['radius', 'ring', 'donut'], count: 12 },
   { id: 'cones', title: { ru: 'Конусы', en: 'Cones' }, accent: '#e9a23b', introduces: ['cone', 'triangle'], count: 12 },

@@ -415,10 +415,12 @@ export function cellConstraints(b: Board, i: number, phase = 0): Constraint[] {
       const cells: number[] = [];
       let value = 0;
       for (let d = 0; d < 6; d++) {
-        const r = ray(b, i, d, phase).filter((j) => !cells.includes(j));
+        // field of view: sight passes over safe cells and stops at the first crystal (not counted)
+        const r = ray(b, i, d, phase);
         rays.push(r);
-        for (const j of r) cells.push(j);
-        if (r.some((j) => b.level.cells[j].gem)) value++;
+        for (const j of r) if (!cells.includes(j)) cells.push(j);
+        const first = r.findIndex((j) => b.level.cells[j].gem);
+        value += first < 0 ? r.length : first;
       }
       return [{ src, cells, kind: 'eye', value, rays }];
     }
@@ -554,6 +556,24 @@ export function chainBounds(c: Constraint, vals: ArrayLike<number>): [number, nu
   return [chainFlood(c, isGem, vals), chainFlood(c, notSafe, vals)];
 }
 
+/**
+ * eye: visible counts k one ray can still produce: cells 0..k-1 can be safe and cell k can be a
+ * crystal (or k = ray length with every cell safe).
+ */
+export function eyeRayCounts(r: number[], vals: ArrayLike<number>): number[] {
+  const out: number[] = [];
+  for (let k = 0; k <= r.length; k++) {
+    if (k === r.length) {
+      out.push(k);
+      break;
+    }
+    const v = vals[r[k]];
+    if (v !== 0) out.push(k);
+    if (v === 1) break;
+  }
+  return out;
+}
+
 export function feasible(c: Constraint, vals: ArrayLike<number>): boolean {
   switch (c.kind) {
     case 'sum': {
@@ -589,21 +609,35 @@ export function feasible(c: Constraint, vals: ArrayLike<number>): boolean {
       return (a === b) === (c.value === 1);
     }
     case 'eye': {
-      let lo = 0, hi = 0;
-      for (const r of c.rays!) {
-        // the ray sees a crystal iff it contains one: a known crystal anywhere decides it
-        let status = 0; // 0 sees nothing, 1 sees crystal, 2 undecided
-        for (const j of r) {
-          const v = vals[j];
-          if (v === 1) {
-            status = 1;
-            break;
-          }
-          if (v === -1) status = 2;
-        }
-        if (status === 1) { lo++; hi++; } else if (status === 2) hi++;
+      // exact: per ray the achievable visible counts, then a subset sum over the 6 rays
+      const all = c.rays!.map((r) => eyeRayCounts(r, vals));
+      let lo = 0, hi = 0, intervals = true;
+      for (const ks of all) {
+        lo += ks[0];
+        hi += ks[ks.length - 1];
+        if (ks[ks.length - 1] - ks[0] !== ks.length - 1) intervals = false;
       }
-      return c.value >= lo && c.value <= hi;
+      if (c.value < lo || c.value > hi) return false;
+      if (intervals) return true; // a sum of integer intervals is an interval
+      if (hi <= 30) {
+        // reachable sums as a bit set
+        let bits = 1;
+        for (const ks of all) {
+          let next = 0;
+          for (const k of ks) next |= bits << k;
+          bits = next;
+        }
+        return ((bits >>> c.value) & 1) === 1;
+      }
+      let reach = [true];
+      for (let t = 0; t < all.length; t++) {
+        const r = c.rays![t];
+        const ks = all[t];
+        const next: boolean[] = new Array(reach.length + r.length).fill(false);
+        for (let s = 0; s < reach.length; s++) if (reach[s]) for (const k of ks) next[s + k] = true;
+        reach = next;
+      }
+      return !!reach[c.value];
     }
     case 'chain': {
       const [lo, hi] = chainBounds(c, vals);

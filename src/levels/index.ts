@@ -1,6 +1,11 @@
 // Level source adapter. Uses the generated campaign (worlds.ts + campaign.json) when present,
 // otherwise falls back to the handmade samples. The UI only talks to this module.
+//
+// campaign.json (~400 KB) is loaded lazily so it never blocks the first paint: world metadata
+// (titles, level ids) comes eagerly from worlds.ts, the level data arrives with
+// `campaignReady()`. Until then `getLevel()` returns undefined for campaign ids.
 
+import { useEffect, useState } from 'preact/hooks';
 import type { Level, MechanicId } from '../core/types';
 import { SAMPLES } from './samples';
 
@@ -13,8 +18,9 @@ export interface WorldDef {
 }
 
 type ExtWorld = Omit<WorldDef, 'mechanics'> & { mechanics?: MechanicId[]; introduces?: MechanicId[] };
+type CampMod = Level[] | { default: Level[] };
 const worldMods = import.meta.glob<{ WORLDS?: ExtWorld[] }>('./worlds.ts', { eager: true });
-const campMods = import.meta.glob<Level[] | { default: Level[] }>('./campaign.json', { eager: true, import: 'default' });
+const campMods = import.meta.glob<CampMod>('./campaign.json', { import: 'default' });
 
 const SAMPLE_WORLDS: WorldDef[] = [
   { id: 'w-first', title: { ru: 'Первые шаги', en: 'First steps' }, accent: '#ff8a5c', mechanics: ['basic', 'counter', 'walls', 'line', 'gaps', 'multiline'], levels: ['s01', 's02', 's03', 's04'] },
@@ -23,35 +29,24 @@ const SAMPLE_WORLDS: WorldDef[] = [
   { id: 'w-v2', title: { ru: 'Туман и чудеса', en: 'Fog & wonders' }, accent: '#4f7cff', mechanics: ['fog', 'ring', 'donut', 'triangle', 'dot', 'swirl', 'island', 'chain', 'big', 'portal', 'rotate', 'switch'], levels: ['s15', 's16', 's17', 's18', 's19', 's20', 's21'] },
 ];
 
-function pickCampaign(): { worlds: WorldDef[]; levels: Level[]; generated: boolean } {
-  const wm = Object.values(worldMods)[0];
-  const cm = Object.values(campMods)[0];
-  const camp = (Array.isArray(cm) ? cm : (cm as { default?: Level[] } | undefined)?.default) as Level[] | undefined;
-  if (wm?.WORLDS?.length && camp?.length) {
-    const ids = new Set(camp.map((l) => l.id));
-    const worlds: WorldDef[] = wm.WORLDS.map((w) => ({
+const extWorlds = Object.values(worldMods)[0]?.WORLDS;
+const campLoader = Object.values(campMods)[0];
+const generated = !!(extWorlds?.length && campLoader);
+
+/** World list (mutated in place once the campaign data arrives, so imports stay valid). */
+export const WORLDS: WorldDef[] = generated
+  ? extWorlds!.map((w) => ({
       id: w.id,
       title: w.title,
       accent: w.accent,
       mechanics: w.mechanics ?? w.introduces ?? [],
-      levels: w.levels.filter((id) => ids.has(id)),
-    })).filter((w) => w.levels.length);
-    if (worlds.length) return { worlds, levels: camp, generated: true };
-  }
-  return { worlds: SAMPLE_WORLDS, levels: SAMPLES, generated: false };
-}
+      levels: [...w.levels],
+    }))
+  : SAMPLE_WORLDS;
+export const CAMPAIGN_IS_GENERATED = generated;
 
-const C = pickCampaign();
 const byId = new Map<string, Level>();
-for (const l of C.levels) byId.set(l.id, l);
-for (const l of SAMPLES) if (!byId.has(l.id)) byId.set(l.id, l);
-
-export const WORLDS: WorldDef[] = C.worlds;
-export const CAMPAIGN_IS_GENERATED = C.generated;
-
-export function getLevel(id: string): Level | undefined {
-  return byId.get(id);
-}
+for (const l of SAMPLES) byId.set(l.id, l);
 
 export interface LevelPos {
   world: number;
@@ -59,7 +54,68 @@ export interface LevelPos {
 }
 
 const pos = new Map<string, LevelPos>();
-WORLDS.forEach((w, wi) => w.levels.forEach((id, li) => pos.set(id, { world: wi, index: li })));
+function indexPositions(): void {
+  pos.clear();
+  WORLDS.forEach((w, wi) => w.levels.forEach((id, li) => pos.set(id, { world: wi, index: li })));
+}
+indexPositions();
+
+let loaded = !generated;
+const subs = new Set<() => void>();
+let readyP: Promise<void> | null = null;
+
+/** Load the campaign level data (once). Resolves also when loading fails (samples stay). */
+export function campaignReady(): Promise<void> {
+  if (loaded) return Promise.resolve();
+  if (!readyP) {
+    readyP = campLoader!()
+      .then((m) => {
+        const camp = (Array.isArray(m) ? m : (m as { default?: Level[] })?.default) ?? [];
+        for (const l of camp) byId.set(l.id, l);
+        const ids = new Set(camp.map((l) => l.id));
+        for (const w of WORLDS) w.levels = w.levels.filter((id) => ids.has(id));
+        for (let k = WORLDS.length - 1; k >= 0; k--) if (!WORLDS[k].levels.length) WORLDS.splice(k, 1);
+        if (!WORLDS.length) WORLDS.push(...SAMPLE_WORLDS);
+        indexPositions();
+      })
+      .catch((e) => {
+        console.error('campaign failed to load', e);
+        WORLDS.splice(0, WORLDS.length, ...SAMPLE_WORLDS);
+        indexPositions();
+      })
+      .finally(() => {
+        loaded = true;
+        subs.forEach((f) => f());
+      });
+  }
+  return readyP;
+}
+
+export function isCampaignLoaded(): boolean {
+  return loaded;
+}
+
+/** Re-render when the campaign data has arrived (and start loading it). Returns the loaded flag. */
+export function useCampaign(): boolean {
+  const [, set] = useState(0);
+  useEffect(() => {
+    if (loaded) return undefined;
+    const f = () => set((n) => n + 1);
+    subs.add(f);
+    void campaignReady();
+    return () => void subs.delete(f);
+  }, []);
+  return loaded;
+}
+
+export function getLevel(id: string): Level | undefined {
+  return byId.get(id);
+}
+
+/** Whether `id` names a campaign/sample level (known before the data is loaded). */
+export function isKnownLevel(id: string): boolean {
+  return byId.has(id) || pos.has(id);
+}
 
 export function levelPos(id: string): LevelPos | undefined {
   return pos.get(id);
@@ -92,4 +148,12 @@ export function worldUnlocked(wi: number, done: (id: string) => boolean): boolea
 
 export function allCampaignIds(): string[] {
   return WORLDS.flatMap((w) => w.levels);
+}
+
+// start fetching right after the first paint: by the time the player taps "Play" it is there
+if (generated && typeof window !== 'undefined') {
+  const kick = () => void campaignReady();
+  const ric = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(kick, { timeout: 1500 });
+  else setTimeout(kick, 300);
 }

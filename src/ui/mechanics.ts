@@ -81,14 +81,16 @@ const tiny = (spec: Parameters<typeof buildSample>[0]) => buildSample(spec);
 const T = (id: string) => ({ id: 'd-' + id, title: '' });
 
 export const DEMOS: Partial<Record<Mech, Demo>> = {
-  basic: { level: tiny({ ...T('basic'), w: 3, h: 3, holes: ['0,0', '2,0'], gems: ['1,0', '2,2'], start: ['1,1'] }), focus: ['1,1'] },
+  // the number and its two crystals are shown from the start, so "2" visibly counts something
+  basic: { level: tiny({ ...T('basic'), w: 3, h: 3, holes: ['0,0', '2,0'], gems: ['1,0', '2,2'], start: ['1,1'] }), focus: ['1,1', '1,0', '2,2'] },
   counter: { level: tiny({ ...T('counter'), w: 3, h: 2, gems: ['0,0', '2,1'], start: [] }), focus: [] },
   fog: { level: tiny({ ...T('fog'), w: 5, h: 3, gems: ['1,0', '3,2'], start: ['0,1'], fog: true }), focus: ['0,1'] },
   walls: {
     level: tiny({ ...T('walls'), w: 3, h: 3, holes: ['0,0', '2,0'], gems: ['1,0', '2,2', '0,2'], walls: [['1,1', 2]], start: ['1,1'] }),
     focus: ['1,1'],
   },
-  gaps: { level: tiny({ ...T('gaps'), w: 1, h: 5, holes: ['0,2'], gems: ['0,3'], clues: { '0,0': { k: 'line', dirs: [3] } }, start: ['0,0'] }), focus: ['0,0'] },
+  // holes are simply missing hexes: the number only counts neighbours that exist
+  gaps: { level: tiny({ ...T('gaps'), w: 3, h: 3, holes: ['0,1', '2,2'], gems: ['1,0', '0,2'], start: ['1,1'] }), focus: ['1,1', '1,0', '0,2'] },
   line: { level: tiny({ ...T('line'), w: 1, h: 5, gems: ['0,2', '0,4'], clues: { '0,0': { k: 'line', dirs: [3] } }, start: ['0,0'] }), focus: ['0,0'] },
   multiline: { level: tiny({ ...T('ml'), w: 3, h: 4, gems: ['1,0', '2,3', '0,3'], clues: { '1,1': { k: 'line', dirs: [0, 3] } }, start: ['1,1'] }), focus: ['1,1'] },
   radius: { level: tiny({ ...T('radius'), w: 5, h: 5, gems: ['1,1', '3,3', '0,4', '4,0'], clues: { '2,2': { k: 'radius' } }, start: ['2,2'] }), focus: ['2,2'] },
@@ -108,7 +110,12 @@ export const DEMOS: Partial<Record<Mech, Demo>> = {
     level: tiny({ ...T('apa'), w: 3, h: 3, holes: ['0,0', '2,0'], gems: ['1,0', '1,2'], clues: { '1,1': { k: 'num', mod: 'apart' } }, start: ['1,1'] }),
     focus: ['1,1'],
   },
-  eye: { level: tiny({ ...T('eye'), w: 5, h: 5, gems: ['2,0', '4,3', '0,3', '2,4'], clues: { '2,2': { k: 'eye' } }, start: ['2,2'] }), focus: ['2,2'] },
+  // the eye sees along 6 lines until the first crystal (not counted) or wall; crystals shown from the start
+  eye: {
+    // N: 1 hex then a crystal · S: 1 hex then a wall · SE: a crystal right away · 3 more diagonals: 1 each → 5
+    level: tiny({ ...T('eye'), w: 3, h: 5, gems: ['1,0', '2,3'], walls: [['1,3', 3]], clues: { '1,2': { k: 'eye' } }, start: ['1,2'] }),
+    focus: ['1,2', '1,0', '2,3'],
+  },
   parity: {
     level: tiny({ ...T('par'), w: 3, h: 3, holes: ['0,0', '2,0'], gems: ['1,0', '2,2', '0,1'], clues: { '1,1': { k: 'parity' } }, start: ['1,1'] }),
     focus: ['1,1'],

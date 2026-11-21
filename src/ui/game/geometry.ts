@@ -228,7 +228,27 @@ export function linkCurve(layout: Layout, a: number, b: number): { d: string; mi
     return [px + ((cx - px) / l) * r, py + ((cy - py) / l) * r];
   };
   const p1 = toward(x1, y1), p2 = toward(x2, y2);
-  const mid: [number, number] = [(p1[0] + 2 * cx + p2[0]) / 4, (p1[1] + 2 * cy + p2[1]) / 4];
+  // badge: the point of the curve farthest from every cell centre (so it never sits on a
+  // number), mildly preferring the middle of the thread
+  const at = (t: number): [number, number] => {
+    const u = 1 - t;
+    return [u * u * p1[0] + 2 * u * t * cx + t * t * p2[0], u * u * p1[1] + 2 * u * t * cy + t * t * p2[1]];
+  };
+  let mid = at(0.5);
+  let best = -Infinity;
+  for (let t = 0.15; t <= 0.851; t += 0.025) {
+    const p = at(t);
+    let near = Infinity;
+    for (const c of layout.px) {
+      const d = Math.hypot(c[0] - p[0], c[1] - p[1]);
+      if (d < near) near = d;
+    }
+    const score = Math.min(near, S * 0.95) - Math.abs(t - 0.5) * S * 0.5;
+    if (score > best) {
+      best = score;
+      mid = p;
+    }
+  }
   const f = (p: [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
   return { d: `M${f(p1)}Q${cx.toFixed(1)},${cy.toFixed(1)} ${f(p2)}`, mid, ends: [p1, p2] };
 }

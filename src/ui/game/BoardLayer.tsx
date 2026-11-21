@@ -6,7 +6,9 @@ import type { Board } from '../../core/rules';
 import { Cell, type CellProps } from './Cell';
 import { edgeSegment, linkCurve, OUTLINE_PATH, S, zoneBadge, zoneOutline, type Layout } from './geometry';
 import { DIRS, toPixel } from '../../core/hex';
+import { CellState } from '../../core/types';
 import { useMemo } from 'preact/hooks';
+import type { WallSeg } from './view';
 
 export interface Highlight {
   cells: number[];
@@ -30,6 +32,8 @@ export interface BoardLayerProps {
   hover: number;
   press: { cell: number; toGem: boolean; key: number } | null;
   staticWalls: string;
+  /** Per-wall segments; when given, walls deep in the fog are drawn faint. */
+  wallSegs?: WallSeg[];
   portals: [number, number, number][];
 }
 
@@ -47,14 +51,34 @@ const Statics = memo(function Statics({ board, layout }: { board: Board; layout:
   );
 });
 
-function Walls({ d }: { d: string }) {
-  if (!d) return null;
+function Walls({ d, dim }: { d: string; dim?: string }) {
+  if (!d && !dim) return null;
   return (
-    <g class="walls">
-      <path class="wall-shadow" d={d} />
-      <path class="wall" d={d} />
-    </g>
+    <>
+      {dim ? (
+        <g class="walls fogged">
+          <path class="wall" d={dim} />
+        </g>
+      ) : null}
+      {d ? (
+        <g class="walls">
+          <path class="wall-shadow" d={d} />
+          <path class="wall" d={d} />
+        </g>
+      ) : null}
+    </>
   );
+}
+
+/** Split walls into "in sight" and "deep in the fog" (both sides fogged or missing). */
+function splitWalls(segs: WallSeg[], cells: CellProps[]): [string, string] {
+  let vis = '', dim = '';
+  const fogged = (u: number) => u < 0 || !!cells[u]?.fog;
+  for (const w of segs) {
+    if (fogged(w.a) && fogged(w.b)) dim += w.d;
+    else vis += w.d;
+  }
+  return [vis, dim];
 }
 
 /** Portal flags: a glowing arc on the edge, and a faint dashed bridge to the partner across the gap. */
@@ -121,14 +145,34 @@ function Zones({ board, layout, values, done }: { board: Board; layout: Layout; 
   );
 }
 
-function Links({ board, layout, done }: { board: Board; layout: Layout; done: boolean[] }) {
+let maskSeq = 0;
+
+/**
+ * Link threads. They pass *under* the clue layer: a mask cuts the thread around every cell that
+ * currently shows a clue, so a thread never covers a number. The "=/≠" badge sits on the point of
+ * the curve farthest from all cell centres (see linkCurve).
+ */
+function Links({ board, layout, done, cells }: { board: Board; layout: Layout; done: boolean[]; cells: CellProps[] }) {
   const geo = useMemo(() => (board.level.links ?? []).map((l) => { const c = linkCurve(layout, l.a, l.b); return { ...c, same: l.same, a: c.ends[0], b: c.ends[1] }; }), [board, layout]);
+  const id = useMemo(() => 'lkm' + ++maskSeq, []);
+  if (!geo.length) return null;
+  const holes = cells.filter((c) => c.st !== CellState.Hidden && c.clue && (c.value || c.clue.k === 'blank'));
   return (
     <g class="links">
+      <defs>
+        <mask id={id} maskUnits="userSpaceOnUse" x={layout.minX - S * 4} y={layout.minY - S * 4} width={layout.w + S * 8} height={layout.h + S * 8}>
+          <rect x={layout.minX - S * 4} y={layout.minY - S * 4} width={layout.w + S * 8} height={layout.h + S * 8} fill="#fff" />
+          {holes.map((c) => (
+            <circle key={c.i} cx={c.x} cy={c.y} r={S * 0.56} fill="#000" />
+          ))}
+        </mask>
+      </defs>
       {geo.map((g, k) => (
         <g key={k} class={(done[k] ? 'link done' : 'link') + (g.same ? ' same' : ' diff')}>
-          <path class="thread-glow" d={g.d} />
-          <path class="thread" d={g.d} />
+          <g mask={`url(#${id})`}>
+            <path class="thread-glow" d={g.d} />
+            <path class="thread" d={g.d} />
+          </g>
           <circle class="knot" cx={g.a[0]} cy={g.a[1]} r={3.6} />
           <circle class="knot" cx={g.b[0]} cy={g.b[1]} r={3.6} />
           <g transform={`translate(${g.mid[0].toFixed(1)} ${g.mid[1].toFixed(1)})`} class="link-badge">
@@ -178,10 +222,10 @@ export function BoardLayer(p: BoardLayerProps) {
           <Cell key={c.i} {...c} />
         ))}
       </g>
-      <Walls d={p.staticWalls} />
+      {p.wallSegs ? <Walls {...(([d, dim]) => ({ d, dim }))(splitWalls(p.wallSegs, p.cells))} /> : <Walls d={p.staticWalls} />}
       <Portals board={p.board} portals={p.portals} />
       <Zones board={p.board} layout={layout} values={p.zoneValues} done={p.zoneDone} />
-      <Links board={p.board} layout={layout} done={p.linkDone} />
+      <Links board={p.board} layout={layout} done={p.linkDone} cells={p.cells} />
       <Highlights layout={layout} highlights={p.highlights} />
       {p.hover >= 0 && (
         <path class="hover-ring" d={layout.outline[p.hover] ?? OUTLINE_PATH} transform={`translate(${layout.px[p.hover][0].toFixed(1)} ${layout.px[p.hover][1].toFixed(1)})`} />

@@ -114,8 +114,8 @@ describe('generator', () => {
     for (const shape of SHAPE_IDS) {
       const L = generateLevel({ seed: `shape-${shape}`, size: 50, shape, mechanics: ['basic', 'counter', 'gaps', 'line'], targetDifficulty: 2, attempts: 1 });
       const a = aspect(L);
-      expect(a).toBeGreaterThanOrEqual(0.6);
-      expect(a).toBeLessThanOrEqual(1.6);
+      expect(a).toBeGreaterThanOrEqual(0.45);
+      expect(a).toBeLessThanOrEqual(1.05); // portrait-friendly
       expect(L.cells.length).toBeGreaterThanOrEqual(35);
       expect(L.cells.length).toBeLessThanOrEqual(65);
     }

@@ -8,8 +8,8 @@ import { getLang, t } from '../../i18n';
 import { goBack, navigate } from '../../router';
 import { sfx } from '../../audio/sfx';
 import type { Level } from '../../core/types';
-import { getLevel, levelPos, WORLDS, worldUnlocked } from '../../levels';
-import { loadBest, saveProgress } from '../../storage';
+import { campaignReady, getLevel, levelPos, WORLDS, worldUnlocked } from '../../levels';
+import { dailyNumber, loadBest, saveProgress } from '../../storage';
 import { continueTarget } from '../progress';
 import { DIFFICULTIES, makeDaily, makeEndless, todayISO, type Difficulty } from '../engine';
 import { GameView } from '../game/GameView';
@@ -120,7 +120,7 @@ function titleOf(src: PuzzleSource, level: Level): { title: string; subtitle?: s
   }
   if (src.k === 'daily') {
     const [y, m, d] = src.date.split('-');
-    return { title: t('daily'), subtitle: `${d}.${m}.${y}` };
+    return { title: t('mf_dailyNo', { n: dailyNumber(src.date) }), subtitle: `${d}.${m}.${y}` };
   }
   return { title: t('endless'), subtitle: DIFFICULTIES.includes(src.diff as Difficulty) ? t(`diff_${src.diff as Difficulty}`) : undefined };
 }
@@ -142,6 +142,7 @@ function defaultChoice(): HostChoice {
 
 async function buildLevel(c: HostChoice): Promise<{ level: Level; src: PuzzleSource } | null> {
   if (c.src.k === 'campaign') {
+    await campaignReady();
     const level = getLevel(c.src.id);
     return level ? { level, src: { k: 'campaign', id: c.src.id } } : null;
   }
@@ -394,7 +395,7 @@ function HostSetup({ room, snap, onStart }: { room: RoomSession; snap: RoomSnaps
       <div class="o-label">{t('on_puzzle')}</div>
       <div class="pz-grid">
         {opt('campaign', <IconHexes />, t('campaign'), campaignSub, 'violet')}
-        {opt('daily', <IconCalendar />, t('daily'), todayISO().split('-').reverse().slice(0, 2).join('.'), 'amber')}
+        {opt('daily', <IconCalendar />, t('daily'), `${t('mf_dailyNoShort', { n: dailyNumber(todayISO()) })} · ${todayISO().split('-').reverse().slice(0, 2).join('.')}`, 'amber')}
         {opt('endless', <IconInfinity />, t('endless'), choice.src.k === 'endless' ? t(`diff_${choice.src.diff as Difficulty}`) : t('endlessSub'), 'teal')}
       </div>
       {choice.src.k === 'endless' && (

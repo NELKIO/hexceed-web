@@ -107,9 +107,10 @@ export const SHAPES: ShapeDef[] = [
     gaps: true,
     multi: true,
     make: (rng) => {
-      const sx = rng.chance(0.5) ? 1 : -1;
-      const c = [[0.6 * sx, -0.38], [-0.6 * sx, 0.38]];
-      return (x, y) => c.some(([cx, cy]) => (x - cx) ** 2 + (y - cy) ** 2 <= 0.46 * 0.46);
+      // stacked vertically (portrait phones), slightly offset for variety
+      const sx = (rng.chance(0.5) ? 1 : -1) * rng.next() * 0.15;
+      const c = [[sx, -0.55], [-sx, 0.55]];
+      return (x, y) => c.some(([cx, cy]) => (x - cx) ** 2 + (y - cy) ** 2 <= 0.41 * 0.41);
     },
   },
   {
@@ -120,8 +121,13 @@ export const SHAPES: ShapeDef[] = [
     multi: true,
     make: (rng) => {
       const rot = rng.chance(0.5) ? 0 : Math.PI;
-      const c = [0, 1, 2].map((k) => [0.72 * Math.cos(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3), 0.72 * Math.sin(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3)]);
-      return (x, y) => c.some(([cx, cy]) => (x - cx) ** 2 + (y - cy) ** 2 <= 0.4 * 0.4);
+      // a tight triangle of pieces, or a column of three
+      const col = rng.chance(0.4);
+      const c = col
+        ? [[0, -0.8], [0, 0], [0, 0.8]]
+        : [0, 1, 2].map((k) => [0.62 * Math.cos(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3), 0.62 * Math.sin(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3)]);
+      const rad = col ? 0.33 : 0.36;
+      return (x, y) => c.some(([cx, cy]) => (x - cx) ** 2 + (y - cy) ** 2 <= rad * rad);
     },
   },
   {
@@ -166,7 +172,7 @@ export const SHAPES: ShapeDef[] = [
     make: (rng) => {
       const amp = 0.22 + rng.next() * 0.1;
       const ph = rng.chance(0.5) ? 0 : Math.PI;
-      return (x, y) => Math.abs(x) <= 1 && Math.abs(y - amp * Math.sin(Math.PI * x + ph)) <= 0.38;
+      return (x, y) => Math.abs(y) <= 1 && Math.abs(x - amp * Math.sin(Math.PI * y + ph)) <= 0.4;
     },
   },
   {
@@ -197,14 +203,15 @@ export const SHAPES: ShapeDef[] = [
 
 export const SHAPE_IDS: ShapeId[] = SHAPES.map((s) => s.id);
 
-function rasterize(pred: Pred, s: number): [number, number][] {
+/** Rasterise at scale s; sy > 1 stretches the outline vertically (portrait boards). */
+function rasterize(pred: Pred, s: number, sy = 1): [number, number][] {
   const out: [number, number][] = [];
   const Q = Math.ceil((1.7 * s) / 1.5) + 1;
   for (let q = -Q; q <= Q; q++) {
-    const R = Math.ceil((1.7 * s) / SQ3 + Math.abs(q) / 2) + 1;
+    const R = Math.ceil((1.7 * s * sy) / SQ3 + Math.abs(q) / 2) + 1;
     for (let r = -R; r <= R; r++) {
       const x = 1.5 * q, y = SQ3 * (r + q / 2);
-      if (pred(x / s, y / s)) out.push([q, r]);
+      if (pred(x / s, y / (s * sy))) out.push([q, r]);
     }
   }
   return out;
@@ -253,16 +260,16 @@ export function aspect(coords: [number, number][]): number {
   return (maxX - minX + 2) / (maxY - minY + SQ3);
 }
 
-function fitShape(def: ShapeDef, pred: Pred, size: number): [number, number][] {
+function fitShape(def: ShapeDef, pred: Pred, size: number, sy = 1): [number, number][] {
   let lo = 0.3, hi = 32;
-  const count = (s: number) => cleanup(rasterize(pred, s), !!def.multi).length;
+  const count = (s: number) => cleanup(rasterize(pred, s, sy), !!def.multi).length;
   for (let it = 0; it < 22; it++) {
     const mid = (lo + hi) / 2;
     if (count(mid) < size) lo = mid;
     else hi = mid;
   }
-  const a = cleanup(rasterize(pred, lo), !!def.multi);
-  const b = cleanup(rasterize(pred, hi), !!def.multi);
+  const a = cleanup(rasterize(pred, lo, sy), !!def.multi);
+  const b = cleanup(rasterize(pred, hi, sy), !!def.multi);
   return Math.abs(a.length - size) <= Math.abs(b.length - size) && a.length > 0 ? a : b;
 }
 
@@ -272,9 +279,16 @@ export interface ShapeOptions {
   /** Split the board into 2–3 islands (implies gaps). */
   islands?: boolean;
   want?: ShapeId;
+  /** Widest allowed board in hex columns (phones: ~9 for regular levels, ~11 for showcases). */
+  maxCols?: number;
 }
 
-/** A board outline of about `size` hexes, aspect ratio 0.6..1.6. */
+/** Number of hex columns (distinct q). */
+export function columns(coords: [number, number][]): number {
+  return new Set(coords.map(([q]) => q)).size;
+}
+
+/** A board outline of about `size` hexes, aspect ratio (width / height) 0.6..1.2, portrait-friendly. */
 export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [number, number][]; shape: ShapeId } {
   const gaps = o.gaps || !!o.islands;
   const pool = SHAPES.filter((s) => s.minSize <= size && (gaps || !s.gaps) && (!o.islands || s.multi || !s.gaps));
@@ -294,17 +308,30 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
         }
       }
     }
-    let coords = fitShape(def, def.make(rng), size);
-    if (o.islands && components(coords).length < 2) {
-      const split = splitIslands(rng, coords);
-      if (!split) continue;
-      coords = split;
+    // portrait: stretch vertically until the board is at most as wide as tall and fits the columns
+    const pred = def.make(rng);
+    const maxCols = o.maxCols ?? (size <= 120 ? 9 : 11);
+    let coords: [number, number][] = [];
+    for (const sy of [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2.05, 2.3]) {
+      coords = fitShape(def, pred, size, sy);
+      if (o.islands && components(coords).length < 2) {
+        const split = splitIslands(rng, coords);
+        if (split) coords = split;
+      }
+      if (aspect(coords) <= 1.0 && columns(coords) <= maxCols) break;
     }
+    if (o.islands && components(coords).length < 2) continue;
     const ar = aspect(coords);
     const tol = Math.max(3, size * 0.25);
-    if (coords.length >= 4 && Math.abs(coords.length - size) <= tol && ar >= 0.6 && ar <= 1.6) return { coords, shape: def.id };
+    if (coords.length >= 4 && Math.abs(coords.length - size) <= tol && ar >= 0.45 && ar <= 1.05 && (columns(coords) <= maxCols || size < 12)) return { coords, shape: def.id };
   }
-  return { coords: fitShape(SHAPES[0], SHAPES[0].make(rng), size), shape: 'hexagon' };
+  const fb = SHAPES[0];
+  let coords = fitShape(fb, fb.make(rng), size);
+  for (const sy of [1.15, 1.3, 1.5, 1.8, 2.1, 2.4, 2.8]) {
+    if (aspect(coords) <= 1.0 && columns(coords) <= (o.maxCols ?? (size <= 120 ? 9 : 11))) break;
+    coords = fitShape(fb, fb.make(rng), size, sy);
+  }
+  return { coords, shape: 'hexagon' };
 }
 
 /**
@@ -312,7 +339,8 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
  * symmetry axes, leaving 2 islands of comparable size. null when that does not work out.
  */
 export function splitIslands(rng: Rng, coords: [number, number][]): [number, number][] | null {
-  const axes = rng.shuffle([0, 1, 2, 3, 4, 5]);
+  // horizontal or slightly tilted channels: the pieces end up stacked (portrait screens)
+  const axes = rng.shuffle([0, 1, 5]);
   for (const k of axes) {
     const th = (k * Math.PI) / 6; // multiples of 30°: edge- and corner-aligned axes
     const nx = -Math.sin(th), ny = Math.cos(th);

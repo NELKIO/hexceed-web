@@ -1,5 +1,5 @@
 import { loadBest, loadLast, loadProgress } from '../storage';
-import { getLevel, levelPos, WORLDS, worldUnlocked } from '../levels';
+import { isKnownLevel, levelPos, WORLDS, worldUnlocked } from '../levels';
 
 export function doneSet(): Set<string> {
   return new Set(Object.keys(loadBest()));
@@ -24,7 +24,7 @@ export function continueTarget(): { id: string; world: number; index: number; fr
   const done = doneSet();
   const isDone = (id: string) => done.has(id);
   const last = loadLast();
-  if (last && getLevel(last) && !isDone(last)) {
+  if (last && isKnownLevel(last) && !isDone(last)) {
     const p = levelPos(last);
     if (p && worldUnlocked(p.world, isDone)) return { id: last, ...p, fresh: !loadProgress(last) };
   }

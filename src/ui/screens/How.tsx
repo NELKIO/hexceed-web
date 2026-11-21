@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import { act, chordMoves } from '../../core/game';
 import { newGameV2 } from '../game/compat';
 import { CellState, type MechanicId } from '../../core/types';
-import { t } from '../../i18n';
+import { pn, t } from '../../i18n';
 import { goBack } from '../../router';
 import { buzz, sfx, unlockAudio } from '../../audio/sfx';
 import { TopBar, useReducedMotion } from '../components/ui';
@@ -11,8 +11,10 @@ import { layoutBoard } from '../game/geometry';
 import { cellProps, newFx, precompute } from '../game/view';
 import { buildSample } from '../../levels/samples';
 import { MECH_ORDER, mechTitle } from '../mechanics';
+import { MechIcon } from '../components/MechIcon';
+import { loadSeen } from '../../storage';
 import { Explainer } from '../game/Explainer';
-import { IconCheck, IconGem, IconRestart } from '../icons';
+import { IconCheck, IconGem, IconLock, IconRestart } from '../icons';
 import { useSettings } from '../settings';
 
 export const TUTORIAL = buildSample({
@@ -79,7 +81,7 @@ function TryBoard() {
           <IconGem />
           <b>{left}</b>
         </span>
-        <span class="try-msg">{won ? t('howTryDone') : s.g.marked === 0 && s.g.moves === 0 ? t('howStep1') : t('howStep2')}</span>
+        <span class="try-msg">{won ? t('howTryDone') : t('howTryMsg')}</span>
         <button class="icon-btn small" aria-label={t('restart')} onClick={() => { sfx.tick(); setRound((r) => r + 1); }}>
           {won ? <IconCheck /> : <IconRestart />}
         </button>
@@ -124,6 +126,9 @@ export function HowScreen() {
   useSettings();
   const [mech, setMech] = useState<MechanicId | null>(null);
   const list = MECH_ORDER;
+  // mechanics the player has not met yet stay locked (the basics are always open)
+  const seen = new Set<string>([...loadSeen(), 'basic', 'counter', 'fog']);
+  const locked = list.filter((m) => !seen.has(m));
   return (
     <div class="screen how">
       <div class="screen-inner">
@@ -153,20 +158,38 @@ export function HowScreen() {
           <li class="keys">{t('howKeys')}</li>
         </ul>
         <h3 class="sect">{t('mechanicsTitle')}</h3>
-        <div class="mchips">
-          {list.map((m) => (
-            <button
-              key={m}
-              class="mchip"
-              onClick={() => {
-                sfx.tick();
-                setMech(m);
-              }}
-            >
-              {t(mechTitle(m))}
-            </button>
-          ))}
+        <div class="mlist">
+          {list
+            .filter((m) => seen.has(m))
+            .map((m) => (
+              <button
+                key={m}
+                class="mrow"
+                onClick={() => {
+                  sfx.tick();
+                  setMech(m);
+                }}
+              >
+                <MechIcon m={m} />
+                <span class="mr-t">{t(mechTitle(m))}</span>
+              </button>
+            ))}
         </div>
+        {locked.length > 0 && (
+          <div class="mlocked" aria-label={t('mechLocked')}>
+            <div class="ml-cap">
+              <IconLock />
+              <span>{t('mechLockedN', { n: pn(locked.length, 'pl_mech') })}</span>
+            </div>
+            <div class="ml-hexes" aria-hidden="true">
+              {locked.map((m) => (
+                <span key={m} class="ml-hex">
+                  ?
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <Explainer mechs={mech ? [mech] : []} open={!!mech} onClose={() => setMech(null)} />
     </div>

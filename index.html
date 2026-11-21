@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <title>Hexlume — логическая головоломка на шестиугольниках</title>
+    <meta name="description" content="Найди спрятанные кристаллы на шестиугольном поле. Только логика, никаких угадываний. Кампания, задача дня, бесконечный режим." />
+    <meta name="theme-color" content="#fbf7f1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Hexlume" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Hexlume" />
+    <meta property="og:description" content="Логическая головоломка: найди кристаллы на шестиугольном поле. Только логика." />
+    <meta property="og:url" content="https://nelkio.github.io/hexceed-web/" />
+    <meta property="og:image" content="https://nelkio.github.io/hexceed-web/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%239b6cff'/%3E%3Cstop offset='1' stop-color='%231fc8b5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z' fill='url(%23a)'/%3E%3Cpath d='M19 27l6.5-8h13L45 27 32 47z' fill='%23fff'/%3E%3Cpath d='M19 27h26M25.5 19l3 8L32 47l3.5-20 3-8' fill='none' stroke='%238b5cf6' stroke-opacity='.5' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      // apply the saved / system theme before the first paint (no flash)
+      try {
+        var s = JSON.parse(localStorage.getItem('hexlume:settings') || '{}');
+        var th = s.theme === 'dark' || s.theme === 'light' ? s.theme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = th;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>Hexlume needs JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "hexceed-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "levels": "vite-node scripts/build-levels.ts"
+  },
+  "dependencies": {
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
+    "@noble/secp256k1": "^3.2.0",
+    "preact": "^10.29.8",
+    "trystero": "^0.27.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^22.20.5",
+    "typescript": "5.8",
+    "vite": "^6.4.6",
+    "vite-node": "^3.2.4",
+    "vitest": "^3.2.7"
+  }
+}

@@ -64,7 +64,8 @@ export class Particles {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
         const sp = 30 + Math.random() * 26;
-        add({ kind: 'dust', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: 420 + Math.random() * 200, size: 1.1 + Math.random() * 0.9, color: i % 2 ? c.core : c.lume });
+        // motes start outside the ring, never on top of the core
+        add({ kind: 'dust', x: x + Math.cos(a) * 16, y: y + Math.sin(a) * 16, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: 420 + Math.random() * 200, size: 1.1 + Math.random() * 0.9, color: i % 2 ? c.core : c.lume });
       }
     } else if (kind === 'dust') {
       for (let i = 0; i < 4; i++) {

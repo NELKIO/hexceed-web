@@ -414,4 +414,8 @@ export const en: Record<keyof typeof ru, string> = {
   levelShort: 'Lv {n}',
   dailyDoneShort: 'solved',
   dailyNewShort: 'new',
+  pl_mistake: 'mistake|mistakes',
+  pl_hint: 'hint|hints',
+  res_perfect: 'All three stars: no mistakes, no hints',
+  res_lost: '−{stars}: {what}',
 };

@@ -48,7 +48,7 @@
 }
 
 .g-name {
-  font-weight: 650;
+  font-weight: 600;
   font-size: clamp(15px, 4.4vw, 18px);
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -58,11 +58,9 @@
 }
 
 .g-sub {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-3);
   white-space: nowrap;
   overflow: hidden;
@@ -77,19 +75,22 @@
   gap: 8px;
   height: 44px;
   min-width: 68px;
-  padding: 0 14px 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--surface);
+  padding: 0 8px;
   color: var(--lume-text);
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 18px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.g-sub.mono {
+  font-family: var(--mono);
+  font-size: 11px;
   font-weight: 500;
 }
 
 .g-counter b {
-  font-weight: 500;
+  font-weight: 600;
   animation: countIn 0.2s var(--ease);
 }
 
@@ -124,14 +125,13 @@
   height: 44px;
   padding: 0 6px;
   color: var(--ink-3);
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 550;
 }
 
 .g-mistakes b {
-  font-weight: 500;
+  font-weight: 550;
 }
 
 .g-mistakes svg {
@@ -177,9 +177,7 @@
 }
 
 .g-mistakes .danger-n small {
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 10px;
   opacity: 0.85;
 }
 
@@ -211,8 +209,6 @@
   width: 50px;
   height: 50px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--surface);
   display: grid;
   place-items: center;
   color: var(--ink-2);
@@ -220,8 +216,7 @@
 }
 
 .tool:hover {
-  background: var(--surface-2);
-  border-color: var(--line-strong);
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -240,20 +235,26 @@
 
 .tool.hint.active {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: var(--accent-soft);
 }
 
+/* hints used: a small mono pill inside the button */
 .tool .badge {
   position: absolute;
-  top: 4px;
-  right: 5px;
+  top: 5px;
+  right: 4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--surface-3);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 500;
   font-style: normal;
-  line-height: 1;
-  color: var(--ink-3);
+  line-height: 14px;
+  text-align: center;
+  color: var(--ink-2);
 }
 
 .tool.rot {
@@ -486,6 +487,9 @@
   touch-action: none;
   overflow: hidden;
   cursor: default;
+  /* the board fades out under the bars instead of being cut hard */
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
 }
 
 .board-svg {
@@ -785,10 +789,26 @@
 }
 
 /* fog: no fill, a dotted hairline silhouette */
+/* fog: cells are invisible; BoardLayer draws one dotted silhouette per fog region */
 .t-fog {
+  fill: transparent;
+  stroke: none;
+}
+
+.fog-edge {
   fill: none;
   stroke: var(--fog);
-  stroke-width: 1.3;
+  stroke-width: 1;
+  stroke-dasharray: 0.1 4.2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* the how-to icon still shows one fogged hex */
+.mech-ic .t-fog {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.6;
   stroke-dasharray: 0.1 4.6;
   stroke-linecap: round;
 }
@@ -1011,11 +1031,11 @@
 }
 
 .walls.fogged {
-  opacity: 0.3;
+  opacity: 0.16;
 }
 
 .fogf .own-walls {
-  opacity: 0.3;
+  opacity: 0.16;
 }
 
 .portal {
@@ -1036,7 +1056,7 @@
 .portal-bridge {
   fill: none;
   stroke: var(--portal);
-  stroke-opacity: 0.5;
+  opacity: 0.35;
   stroke-width: 1.4;
   stroke-dasharray: 0.1 6;
   stroke-linecap: round;
@@ -1091,6 +1111,16 @@
   stroke: var(--tc);
   stroke-width: 1.7;
   stroke-linecap: round;
+  opacity: 0.35;
+}
+
+/* stops of the faded-end gradients take the colour of their thread / portal */
+.links .fade-stop {
+  stop-color: var(--tc);
+}
+
+.portals .fade-stop {
+  stop-color: var(--portal);
 }
 
 .link.diff .thread {
@@ -1419,13 +1449,18 @@
 
 .onb-bubble rect,
 .onb-bubble path {
-  fill: var(--ink);
+  fill: var(--surface-3);
+}
+
+.onb-bubble rect {
+  stroke: var(--line-strong);
+  stroke-width: 1;
 }
 
 .onb-bubble text {
-  fill: var(--bg);
+  fill: var(--ink);
   font-family: var(--font);
-  font-weight: 600;
+  font-weight: 550;
 }
 
 .onb-bob {
@@ -1537,11 +1572,8 @@
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink-2);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   animation: fadeIn 0.3s var(--ease) 0.9s both;
 }
 
@@ -1583,13 +1615,12 @@
 
 .res-note {
   position: relative;
-  margin: -4px 0 4px;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+  margin: -2px 0 4px;
+  max-width: 34ch;
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--ink-2);
   text-align: center;
 }
 
@@ -1616,39 +1647,43 @@
 }
 
 .res-stats small {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12.5px;
   font-weight: 500;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  line-height: 1.3;
   color: var(--ink-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
 }
 
 .res-stats b {
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 22px;
   font-weight: 500;
   line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .res-stats i {
   font-style: normal;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
-.res .row {
+/* the next step and two quiet alternatives */
+.res-actions {
   width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
 }
 
-.res > .btn.cta {
-  margin-top: 4px;
+.res-actions > .btn.cta {
+  grid-column: 1 / -1;
+}
+
+.res-actions > .btn:only-child {
+  grid-column: 1 / -1;
 }
 
 /* ---------------------------------------------------------------- landscape phones
@@ -1798,9 +1833,23 @@
     grid-row: 1 / span 3;
   }
 
-  .result .res > .btn,
-  .result .res > .row {
+  .result .res > .res-actions {
     grid-column: 1 / -1;
+    grid-template-columns: 2fr 1fr 1fr;
+    margin-top: 0;
+  }
+
+  .result .res-actions > .btn.cta {
+    grid-column: auto;
+  }
+
+  .result .res-actions > .btn {
+    min-height: 46px;
+    padding: 0 12px;
+  }
+
+  .result .res-stats > div {
+    padding: 10px 4px 10px 12px;
   }
 
   .result .res .stars svg {

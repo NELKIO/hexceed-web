@@ -1000,7 +1000,7 @@ export function GameView(props: GameViewProps) {
         </button>
         <div class="g-title">
           <div class="g-name">{props.title}</div>
-          {props.subtitle && <div class="g-sub">{props.subtitle}</div>}
+          {props.subtitle && <div class={'g-sub' + (/^[\d\s·./:-]+$/.test(props.subtitle) ? ' mono' : '')}>{props.subtitle}</div>}
         </div>
         <div
           class={'g-mistakes' + (g.mistakes ? ' has' : '') + (danger ? ' danger' : '')}
@@ -1131,7 +1131,7 @@ export function GameView(props: GameViewProps) {
             <div class="res-glow" />
             <h2>{t('solved')}</h2>
             <Stars n={win.stars} size={44} animate />
-            <p class="res-note">{win.stars === 3 ? t('mf_st_perfectSub') : t('starsRule')}</p>
+            <p class="res-note">{resultNote(win)}</p>
             <div class="res-stats">
               <div>
                 <small>{win.newBest ? t('newBest') : t('time')}</small>
@@ -1147,18 +1147,18 @@ export function GameView(props: GameViewProps) {
                 <b>{win.hints}</b>
               </div>
             </div>
-            <button
-              class="btn cta wide big"
-              onClick={() => {
-                sfx.tick();
-                if (props.next) props.next.go();
-                else goBack(props.backTo);
-              }}
-              autoFocus
-            >
-              <span>{props.next ? props.next.label : props.backTo === '/' ? t('toMenu') : t('toMap')}</span>
-            </button>
-            <div class="row">
+            <div class="res-actions">
+              <button
+                class="btn cta big"
+                onClick={() => {
+                  sfx.tick();
+                  if (props.next) props.next.go();
+                  else goBack(props.backTo);
+                }}
+                autoFocus
+              >
+                <span>{props.next ? props.next.label : props.backTo === '/' ? t('toMenu') : t('toMap')}</span>
+              </button>
               <button class="btn ghost" onClick={() => restart()}>
                 <IconRestart />
                 <span>{t('again')}</span>
@@ -1182,18 +1182,25 @@ export function GameView(props: GameViewProps) {
   );
 }
 
+/** One specific sentence under the stars: why this many. */
+function resultNote(w: WinInfo): string {
+  if (w.stars >= 3) return t('res_perfect');
+  const what = [w.mistakes > 0 ? pn(w.mistakes, 'pl_mistake') : '', w.hints > 0 ? pn(w.hints, 'pl_hint') : ''].filter(Boolean).join(', ');
+  return t('res_lost', { stars: pn(3 - w.stars, 'pl_star'), what });
+}
+
 /** "Tap here" bubble + pulsing outline for the very first move. */
 function OnboardBubble({ x, y, below, path, label, gem }: { x: number; y: number; below: boolean; path?: string; label: string; gem?: boolean }) {
-  const w = 30 + label.length * 9;
+  const w = 26 + label.length * 7.6;
   return (
     <g class={'onb' + (gem ? ' gem' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
       <path class="onb-ring r1" d={path ?? OUTLINE_PATH} />
       <path class="onb-ring r2" d={path ?? OUTLINE_PATH} />
-      <g class="onb-bubble" transform={`translate(0 ${below ? 58 : -58})`}>
+      <g class="onb-bubble" transform={`translate(0 ${below ? 56 : -56})`}>
         <g class="onb-bob">
-          <rect x={-w / 2} y={-16} width={w} height={32} rx={6} />
-          <path d={below ? 'M-6,-15.5 L0,-22.5 L6,-15.5 Z' : 'M-6,15.5 L0,22.5 L6,15.5 Z'} />
-          <text text-anchor="middle" dominant-baseline="central" font-size={15}>
+          <path d={below ? 'M-6,-13.5 L0,-20 L6,-13.5 Z' : 'M-6,13.5 L0,20 L6,13.5 Z'} />
+          <rect x={-w / 2} y={-14} width={w} height={28} rx={5} />
+          <text text-anchor="middle" dominant-baseline="central" font-size={13}>
             {label}
           </text>
         </g>

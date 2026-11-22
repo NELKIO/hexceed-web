@@ -52,7 +52,8 @@ export function MiniBoard({ mech, playing = true }: { mech: MechanicId; playing?
     (level.zones ?? []).forEach((_, z) => srcs.push({ t: 'zone', z }));
     (level.links ?? []).forEach((_, l) => srcs.push({ t: 'link', l }));
     const showHl = () => {
-      sim.hl = srcs.map((s, k) => ({ cells: srcCells(g, base.pre, s), src: s.t === 'cell' ? s.i : -1, tint: k % 4, key: 'h' + k }));
+      // one accent hue per card; only the covered cells are outlined (no rings on the source)
+      sim.hl = srcs.map((s, k) => ({ cells: srcCells(g, base.pre, s), src: -1, tint: 0, key: 'h' + k }));
     };
     let t = 600;
     if (demo.phases) {

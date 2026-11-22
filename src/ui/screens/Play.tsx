@@ -100,8 +100,8 @@ export function PlayScreen({ params }: { params: string[] }) {
       key={id}
       level={level}
       storeKey={id}
-      title={pos ? t('level', { n: pos.index + 1 }) : (level.title ?? id)}
-      subtitle={world && pos ? `${t('world', { n: String(pos.world + 1).padStart(2, '0') })} · ${world.title[lang]}` : undefined}
+      title={world ? world.title[lang] : pos ? t('level', { n: pos.index + 1 }) : (level.title ?? id)}
+      subtitle={world && pos ? `${String(pos.world + 1).padStart(2, '0')} · ${String(pos.index + 1).padStart(2, '0')}/${world.levels.length}` : undefined}
       backTo="/worlds"
       next={nextOk && nextId ? { label: t('next'), go: () => navigate('/play/' + nextId, true) } : null}
     />

@@ -15,7 +15,6 @@ import { dailyNumber, dailyStreak, loadDaily } from '../../storage';
 import { pregenDaily, todayISO } from '../engine';
 import { useSettings } from '../settings';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /** A mode card: line icon, title, a mono meta line; an optional mono badge top-right. */
 function Card({ icon, title, meta, onClick, badge }: { icon: JSX.Element; title: string; meta: ComponentChildren; onClick: () => void; badge?: ComponentChildren }) {
@@ -53,8 +52,8 @@ export function MenuScreen() {
   const cw = WORLDS[cwi];
   const best = loadBest();
   const cwDone = cw ? cw.levels.filter((id) => best[id]).length : 0;
-  const campMeta = cw ? `${t('world', { n: pad2(cwi + 1) })} · ${cwDone}/${cw.levels.length}` : '';
-  const contMeta = cont && cw ? `${pad2(cont.world + 1)} · ${pad2(cont.index + 1)}` : '';
+  const campMeta = cw ? `${t('world', { n: cwi + 1 })} · ${cwDone}/${cw.levels.length}` : '';
+  const contSub = cont ? t('playSub', { world: WORLDS[cont.world]?.title[lang] ?? '', n: cont.index + 1 }) : '';
   return (
     <div class="menu">
       <HexBackground />
@@ -80,10 +79,7 @@ export function MenuScreen() {
             <button class="cta-big" onClick={() => cont && go('/play/' + cont.id)}>
               <span class="cb-text">
                 <span class="cb-t">{cont && !cont.fresh ? t('continue') : t('play')}</span>
-                <span class="cb-s">
-                  {cw && <span>{WORLDS[cont?.world ?? 0]?.title[lang]}</span>}
-                  <span class="cb-meta">{contMeta}</span>
-                </span>
+                <span class="cb-s">{contSub}</span>
               </span>
               <span class="cb-ic">
                 <IconArrow />
@@ -111,7 +107,7 @@ export function MenuScreen() {
                 meta={`№${dailyNumber(today)} · ${daily ? t('dailyDoneShort') : t('dailyNewShort')}`}
                 badge={
                   streak.current > 0 ? (
-                    <span class="mc-streak" title={t('mf_st_streak')}>{t('mf_streak', { n: pad2(streak.current) })}</span>
+                    <span class="mc-streak" title={t('mf_st_streak')}>{t('mf_streak', { n: streak.current })}</span>
                   ) : daily ? undefined : (
                     <span class="mc-dot" aria-hidden="true" />
                   )

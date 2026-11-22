@@ -38,7 +38,6 @@ export function Explainer({ mechs, open, onClose }: { mechs: MechanicId[]; open:
   const m = list[k];
   if (!m) return null;
   const last = k >= list.length - 1;
-  const many = list.length > 9;
   return (
     <Sheet open={open} onClose={close} class="explainer" label={t(mechTitle(m))}>
       <div class="ex-card" key={m}>
@@ -51,18 +50,11 @@ export function Explainer({ mechs, open, onClose }: { mechs: MechanicId[]; open:
           {m === 'basic' && <p class="ex-sub">{t(coarse() ? 'exMarkTouch' : 'exMarkMouse')}</p>}
         </div>
       </div>
-      {list.length > 1 &&
-        (many ? (
-          <div class="ex-count" aria-live="polite">
-            {k + 1} / {list.length}
-          </div>
-        ) : (
-          <div class="dots">
-            {list.map((x, j) => (
-              <button key={x} class={j === k ? 'on' : ''} aria-label={t(mechTitle(x))} aria-current={j === k} onClick={() => setI(j)} />
-            ))}
-          </div>
-        ))}
+      {list.length > 1 && (
+        <div class="ex-count" aria-live="polite">
+          {k + 1} / {list.length}
+        </div>
+      )}
       <div class={'ex-actions' + (last ? ' single' : '')}>
         {!last && (
           <button

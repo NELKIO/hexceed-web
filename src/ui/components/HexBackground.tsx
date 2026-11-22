@@ -11,7 +11,7 @@ interface Glow {
   dur: number;
 }
 
-const MAX_GLOWS = 3;
+const MAX_GLOWS = 0; // background lights off: on the menu only the hero board glows
 
 export function HexBackground({ size = 34 }: { size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -64,9 +64,10 @@ export function HexBackground({ size = 34 }: { size?: number }) {
       // lights only where the lattice is clearly visible (away from the faded edges)
       // …and never behind text or buttons (rects of the menu content, in canvas coordinates)
       const box = cv.getBoundingClientRect();
-      const busy = Array.from(document.querySelectorAll('.brand, .menu-actions, .hero-board, .update-bar')).map((el) => {
+      const pad = 40 + R;
+      const busy = Array.from(document.querySelectorAll('.brand, .menu-actions, .menu-hero, .update-bar')).map((el) => {
         const r = el.getBoundingClientRect();
-        return [r.left - box.left - R, r.top - box.top - R, r.right - box.left + R, r.bottom - box.top + R];
+        return [r.left - box.left - pad, r.top - box.top - pad, r.right - box.left + pad, r.bottom - box.top + pad];
       });
       inner = centers.filter(
         ([x, y]) => x > w * 0.08 && x < w * 0.92 && y > h * 0.05 && y < h * 0.8 && !busy.some(([l, t, r, b]) => x > l && x < r && y > t && y < b),
@@ -122,8 +123,11 @@ export function HexBackground({ size = 34 }: { size?: number }) {
       }
     };
 
+    /** Phones and small windows: the lattice only, no lights (there is no free space for them). */
+    const maxGlows = () => (w < 900 ? 0 : MAX_GLOWS);
+
     const spawn = (now: number) => {
-      if (!inner.length || glows.length >= MAX_GLOWS) return;
+      if (!inner.length || glows.length >= maxGlows()) return;
       const [x, y] = inner[Math.floor(Math.random() * inner.length)];
       if (glows.some((g) => Math.hypot(g.x - x, g.y - y) < R * 4)) return;
       glows.push({ x, y, t0: now, dur: 6000 + Math.random() * 4000 });
@@ -144,7 +148,7 @@ export function HexBackground({ size = 34 }: { size?: number }) {
     const still = () => {
       glows.length = 0;
       const t = performance.now();
-      for (let k = 0; k < 2 && inner.length; k++) {
+      for (let k = 0; k < Math.min(2, maxGlows()) && inner.length; k++) {
         const [x, y] = inner[Math.floor(((k + 1) * inner.length) / 3)];
         glows.push({ x, y, t0: t - 5000, dur: 1e9 });
       }

@@ -422,4 +422,8 @@ export const ru = {
   levelShort: 'Ур. {n}',
   dailyDoneShort: 'решена',
   dailyNewShort: 'новая',
+  pl_mistake: 'ошибка|ошибки|ошибок',
+  pl_hint: 'подсказка|подсказки|подсказок',
+  res_perfect: 'Все три звезды: без ошибок и подсказок',
+  res_lost: '−{stars}: {what}',
 };

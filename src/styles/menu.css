@@ -62,8 +62,8 @@
 
 .brand-name {
   font-size: 44px;
-  font-weight: 700;
-  letter-spacing: -0.045em;
+  font-weight: 600;
+  letter-spacing: -0.035em;
   line-height: 1;
   padding-bottom: 2px;
 }
@@ -87,18 +87,19 @@
 
 /* the little board that solves itself */
 .menu-hero {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 1 1 266px;
+  min-height: 140px;
+  max-height: 340px;
   display: grid;
   place-items: center;
-  padding: 12px 0;
+  padding: 20px 0 16px;
 }
 
 .hero-board {
   width: 100%;
-  max-width: 270px;
+  max-width: 300px;
   height: 100%;
-  max-height: 170px;
+  max-height: 230px;
   display: grid;
   place-items: center;
   pointer-events: none;
@@ -127,6 +128,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: auto;
   animation: riseIn 0.32s var(--ease) 0.06s both;
 }
 
@@ -174,9 +176,7 @@
 }
 
 .cb-s {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  display: block;
   min-width: 0;
   font-size: 14px;
   font-weight: 500;
@@ -192,11 +192,10 @@
 }
 
 .cb-meta {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   flex: none;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.005em;
 }
 
 .cb-ic {
@@ -303,9 +302,9 @@
 }
 
 .mc-badge .mc-streak {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 11px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 550;
   color: var(--lume-text);
 }
 
@@ -373,11 +372,16 @@
     justify-content: center;
     padding-top: calc(var(--safe-top) + 40px);
   }
+  .hexbg {
+    /* the lattice bleeds off the right edge and fades out behind the text */
+    -webkit-mask-image: linear-gradient(90deg, transparent 8%, rgba(0, 0, 0, 0.35) 36%, #000 62%);
+    mask-image: linear-gradient(90deg, transparent 8%, rgba(0, 0, 0, 0.35) 36%, #000 62%);
+  }
   .menu-main {
-    max-width: 1120px;
+    max-width: 1320px;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(380px, 460px) 1fr;
+    grid-template-columns: minmax(380px, 440px) 1fr;
     grid-template-rows: auto 1fr;
     column-gap: 72px;
     row-gap: 40px;
@@ -404,13 +408,18 @@
   .menu-hero {
     grid-column: 2;
     grid-row: 1 / span 2;
-    align-self: stretch;
+    align-self: center;
+    justify-self: end;
     padding: 0;
+    min-height: 0;
+    max-height: none;
   }
   .hero-board {
     display: grid;
-    max-width: 560px;
-    max-height: 420px;
+    width: 45vw;
+    max-width: 760px;
+    height: min(64vh, 30vw);
+    max-height: none;
   }
 }
 
@@ -481,12 +490,10 @@
 
 .st-h {
   margin: 6px 0 -4px;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.005em;
 }
 
 .st-grid {
@@ -519,12 +526,13 @@
 
 .st-v {
   order: 2;
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 22px;
   font-weight: 500;
   line-height: 1.1;
   white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .st-v small {

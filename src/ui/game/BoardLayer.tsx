@@ -75,6 +75,33 @@ function Walls({ d, dim }: { d: string; dim?: string }) {
   );
 }
 
+/**
+ * Fog as one quiet silhouette per fog region: only the region's outline is drawn (edges towards a
+ * gap, the board edge or a cell in sight). Edges between two fog hexes are left out, so the region
+ * reads as one shape, not a grid of dotted cells.
+ */
+function FogSilhouette({ layout, cells }: { layout: Layout; cells: CellProps[] }) {
+  const key = cells.map((c) => (c.fog ? '1' : '0')).join('');
+  const d = useMemo(() => {
+    let out = '';
+    for (const c of cells) {
+      if (!c.fog) continue;
+      for (const [q, r] of layout.hexes[c.i] ?? []) {
+        const [x, y] = toPixel(q, r, S);
+        for (let k = 0; k < 6; k++) {
+          const nb = layout.hexUnit.get(`${q + DIRS[k][0]},${r + DIRS[k][1]}`);
+          if (nb !== undefined && (nb === c.i || cells[nb]?.fog)) continue; // inside the region: no line
+          const [a, b] = edgeSegment(x, y, k, S * 0.97);
+          out += `M${a[0].toFixed(1)},${a[1].toFixed(1)}L${b[0].toFixed(1)},${b[1].toFixed(1)}`;
+        }
+      }
+    }
+    return out;
+  }, [layout, key]);
+  if (!d) return null;
+  return <path class="fog-edge" d={d} />;
+}
+
 /** Split walls into "in sight" and "deep in the fog" (both sides fogged or missing). */
 function splitWalls(segs: WallSeg[], cells: CellProps[]): [string, string] {
   let vis = '', dim = '';
@@ -87,13 +114,13 @@ function splitWalls(segs: WallSeg[], cells: CellProps[]): [string, string] {
 }
 
 /** Portal flags: a glowing arc on the edge, and a faint dashed bridge to the partner across the gap. */
-function Portals({ board, portals }: { board: Board; portals: [number, number, number][] }) {
+function Portals({ board, layout, portals }: { board: Board; layout: Layout; portals: [number, number, number][] }) {
   const geo = useMemo(() => {
     const set = new Set(portals.map(([q, r, d]) => `${q},${r},${d}`));
     const has = (q: number, r: number) => board.index.has(`${q},${r}`);
     const B = board.bounds;
     const arcs: string[] = [];
-    const bridges: string[] = [];
+    const bridges: [number, number, number, number][] = [];
     for (const [q, r, d] of portals) {
       const [x, y] = toPixel(q, r, S);
       const [a, c] = edgeSegment(x, y, d, S * 0.93);
@@ -111,17 +138,35 @@ function Portals({ board, portals }: { board: Board; portals: [number, number, n
         if (has(qq, rr) && set.has(`${qq},${rr},${(d + 3) % 6}`)) {
           const [x2, y2] = toPixel(qq, rr, S);
           const [a2, c2] = edgeSegment(x2, y2, (d + 3) % 6, S);
-          bridges.push(`M${mx.toFixed(1)},${my.toFixed(1)}L${((a2[0] + c2[0]) / 2).toFixed(1)},${((a2[1] + c2[1]) / 2).toFixed(1)}`);
+          bridges.push([mx, my, (a2[0] + c2[0]) / 2, (a2[1] + c2[1]) / 2]);
           break;
         }
       }
     }
-    return { arcs: arcs.join(''), bridges: bridges.join('') };
+    return { arcs: arcs.join(''), bridges };
   }, [board, portals]);
+  const id = useMemo(() => 'pt' + ++maskSeq, []);
   if (!portals.length) return null;
   return (
     <g class="portals">
-      <path class="portal-bridge" d={geo.bridges} />
+      <defs>
+        <clipPath id={id + 'c'}>
+          <rect x={layout.minX} y={layout.minY} width={layout.w} height={layout.h} />
+        </clipPath>
+        {geo.bridges.map(([x1, y1, x2, y2], k) => (
+          <linearGradient key={k} id={`${id}g${k}`} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={x2} y2={y2}>
+            <stop offset="0" class="fade-stop" style={{ stopOpacity: 0.15 }} />
+            <stop offset="0.3" class="fade-stop" />
+            <stop offset="0.7" class="fade-stop" />
+            <stop offset="1" class="fade-stop" style={{ stopOpacity: 0.15 }} />
+          </linearGradient>
+        ))}
+      </defs>
+      <g clip-path={`url(#${id}c)`}>
+        {geo.bridges.map(([x1, y1, x2, y2], k) => (
+          <path key={k} class="portal-bridge" d={`M${x1.toFixed(1)},${y1.toFixed(1)}L${x2.toFixed(1)},${y2.toFixed(1)}`} style={{ stroke: `url(#${id}g${k})` }} />
+        ))}
+      </g>
       <path class="portal-glow" d={geo.arcs} />
       <path class="portal" d={geo.arcs} />
     </g>
@@ -139,7 +184,7 @@ function Zones({ board, layout, values, done }: { board: Board; layout: Layout; 
         <g key={z} class={done[z] ? 'zone done' : 'zone'}>
           <path class="zone-line" d={g.d} />
           <g transform={`translate(${g.badge[0].toFixed(1)} ${g.badge[1].toFixed(1)})`} class="zone-badge">
-            <rect x={-14} y={-12} width={28} height={24} rx={12} />
+            <rect x={-14} y={-12} width={28} height={24} rx={4} />
             <text font-size={15} text-anchor="middle" dominant-baseline="central">
               {values[z]}
             </text>
@@ -178,8 +223,9 @@ function Links({ board, layout, done, cells }: { board: Board; layout: Layout; d
   return (
     <g class="links">
       <defs>
-        <mask id={id} maskUnits="userSpaceOnUse" x={layout.minX - S * 4} y={layout.minY - S * 4} width={layout.w + S * 8} height={layout.h + S * 8}>
-          <rect x={layout.minX - S * 4} y={layout.minY - S * 4} width={layout.w + S * 8} height={layout.h + S * 8} fill="#fff" />
+        {/* threads stay inside the board: the mask is the board's own rectangle */}
+        <mask id={id} maskUnits="userSpaceOnUse" x={layout.minX} y={layout.minY} width={layout.w} height={layout.h}>
+          <rect x={layout.minX} y={layout.minY} width={layout.w} height={layout.h} fill="#fff" />
           {holes.map((c) => (
             <circle key={c.i} cx={c.x} cy={c.y} r={S * 0.56} fill="#000" />
           ))}
@@ -187,9 +233,14 @@ function Links({ board, layout, done, cells }: { board: Board; layout: Layout; d
       </defs>
       {geo.map((g, k) => (
         <g key={k} class={(done[k] ? 'link done' : 'link') + (g.same ? ' same' : ' diff')}>
+          <linearGradient id={`${id}g${k}`} gradientUnits="userSpaceOnUse" x1={g.a[0]} y1={g.a[1]} x2={g.b[0]} y2={g.b[1]}>
+            <stop offset="0" class="fade-stop" style={{ stopOpacity: 0.2 }} />
+            <stop offset="0.3" class="fade-stop" />
+            <stop offset="0.7" class="fade-stop" />
+            <stop offset="1" class="fade-stop" style={{ stopOpacity: 0.2 }} />
+          </linearGradient>
           <g mask={`url(#${id})`}>
-            <path class="thread-glow" d={g.d} />
-            <path class="thread" d={g.d} />
+            <path class="thread" d={g.d} style={{ stroke: `url(#${id}g${k})` }} />
           </g>
           <circle class="knot" cx={g.a[0]} cy={g.a[1]} r={3.6} />
           <circle class="knot" cx={g.b[0]} cy={g.b[1]} r={3.6} />
@@ -243,9 +294,10 @@ export function BoardLayer(p: BoardLayerProps) {
           <Cell key={c.i} {...c} />
         ))}
       </g>
+      <FogSilhouette layout={layout} cells={p.cells} />
       <Halos cells={p.cells} wave={p.glowWave ?? null} />
       {p.wallSegs ? <Walls {...(([d, dim]) => ({ d, dim }))(splitWalls(p.wallSegs, p.cells))} /> : <Walls d={p.staticWalls} />}
-      <Portals board={p.board} portals={p.portals} />
+      <Portals board={p.board} layout={layout} portals={p.portals} />
       <Zones board={p.board} layout={layout} values={p.zoneValues} done={p.zoneDone} />
       <Links board={p.board} layout={layout} done={p.linkDone} cells={p.cells} />
       <Highlights layout={layout} highlights={p.highlights} />

@@ -7,7 +7,7 @@
 //   towards a corner · triangle = the same fan as an open outline, cut short (only its far part) ·
 //   radius = soft filled disc · ring = one thin circle · donut = two thin circles · dot = one dot
 //   two steps out (with a dotted trail) · swirl = curved arrow · island = coastline contour ·
-//   chain = two links · eye = an almond whose iris holds the number · parity = two pips (even) /
+//   chain = two links · eye = an almond whose iris holds the number · parity = two bare pips (even) /
 //   one pip (odd) + a word · together {n} · apart -n- · blank = short dash.
 //   Decorations sit in `.deco` groups so the done state can dim them separately from the number
 //   (numbers keep >= 4.5:1 contrast).
@@ -164,15 +164,11 @@ function ParityGlyph({ odd }: { odd: boolean }) {
     <g class={'c-par' + (odd ? ' odd' : ' even')}>
       <g class="deco">
         {odd ? (
-          <>
-            <circle class="frame" cy={-7} r={8.5} />
-            <circle class="dot" cy={-7} r={3.6} />
-          </>
+          <circle class="dot" cy={-7} r={4} />
         ) : (
           <>
-            <rect class="frame" x={-15.5} y={-15.5} width={31} height={17} rx={8.5} />
-            <circle class="dot" cx={-6.5} cy={-7} r={3.6} />
-            <circle class="dot" cx={6.5} cy={-7} r={3.6} />
+            <circle class="dot" cx={-6.5} cy={-7} r={4} />
+            <circle class="dot" cx={6.5} cy={-7} r={4} />
           </>
         )}
       </g>

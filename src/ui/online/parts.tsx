@@ -45,15 +45,15 @@ export function partnerColor(snap: RoomSnapshot): string {
 
 /**
  * Player colours as drawn: the protocol keeps the original ids (older clients validate against
- * them), the UI shows a calmer, desaturated version of each.
+ * them), the UI shows a calm version of each (HSL saturation <= 35%).
  */
 const DISPLAY: Record<string, string> = {
-  '#ff6f61': '#e48c7c',
-  '#8b5cf6': '#a596e6',
-  '#16b3a3': '#6fbfae',
-  '#f59e0b': '#a9c27a',
-  '#ec5f97': '#d98fb1',
-  '#4f7cff': '#8fa8ff',
+  '#ff6f61': '#c79a8f',
+  '#8b5cf6': '#a69dca',
+  '#16b3a3': '#8dbcae',
+  '#f59e0b': '#a9ba8d',
+  '#ec5f97': '#c898ac',
+  '#4f7cff': '#a0abc9',
 };
 export const tone = (c: string): string => DISPLAY[c.toLowerCase()] ?? c;
 
@@ -87,7 +87,9 @@ export function ProfileEditor({ profile, onChange }: { profile: Profile; onChang
   return (
     <div class="profile" style={{ '--pc': tone(profile.color) } as JSX.CSSProperties}>
       <div class="pf-avatar">
-        <HexDot color={profile.color} size={34} />
+        <svg class="pf-hex" viewBox="0 0 64 58" aria-hidden="true">
+          <path d="M17 2.5 H47 L62 29 L47 55.5 H17 L2 29 Z" style={{ stroke: tone(profile.color) }} />
+        </svg>
         <b>{(profile.name || '?').slice(0, 1).toUpperCase()}</b>
       </div>
       <div class="pf-main">

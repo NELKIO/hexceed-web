@@ -115,7 +115,8 @@ function titleOf(src: PuzzleSource, level: Level): { title: string; subtitle?: s
   const lang = getLang();
   if (src.k === 'campaign') {
     const p = levelPos(src.id);
-    if (p) return { title: t('level', { n: p.index + 1 }), subtitle: WORLDS[p.world]?.title[lang] };
+    const w = p ? WORLDS[p.world] : undefined;
+    if (p && w) return { title: w.title[lang], subtitle: `${String(p.world + 1).padStart(2, '0')} · ${String(p.index + 1).padStart(2, '0')}/${w.levels.length}` };
     return { title: level.title ?? t('campaign') };
   }
   if (src.k === 'daily') {

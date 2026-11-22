@@ -7,10 +7,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  padding: 18px 2px;
+  border-top: 1px solid var(--line);
 }
 
 .o-label {
@@ -79,12 +77,9 @@
 
 .profile {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   align-items: center;
-  padding: 14px 16px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  padding: 8px 2px 18px;
 }
 
 .o-me .profile {
@@ -94,30 +89,33 @@
 
 .pf-avatar {
   position: relative;
-  width: 58px;
-  height: 64px;
+  width: 60px;
+  height: 54px;
   display: grid;
   place-items: center;
   flex: none;
 }
 
-.pf-avatar svg {
+/* avatar: a quiet hex with a thin ring in the player's colour */
+.pf-avatar .pf-hex {
   position: absolute;
   inset: 0;
-  width: 58px !important;
-  height: 64px !important;
-  transition: filter 0.2s;
+  width: 60px;
+  height: 54px;
 }
 
-.pf-avatar svg path {
-  transition: fill 0.25s;
+.pf-avatar .pf-hex path {
+  fill: var(--surface-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  transition: stroke 0.2s var(--ease);
 }
 
 .pf-avatar b {
   position: relative;
   font-size: 22px;
-  font-weight: 650;
-  color: var(--bg);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .pf-main {
@@ -182,17 +180,24 @@
 }
 
 .pf-color {
+  position: relative;
   width: 28px;
   height: 28px;
   border-radius: 50%;
   background: var(--c);
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 2px transparent;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 2px transparent;
   transition: transform 0.15s var(--ease), box-shadow 0.15s;
+}
+
+.pf-color::after {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
 }
 
 .pf-color.on {
   transform: scale(1.12);
-  box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4.5px var(--c);
+  box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 4px var(--c);
 }
 
 .join-row {
@@ -390,14 +395,11 @@
   flex: none;
   padding: 4px 10px;
   border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
   color: var(--ink-2);
   border: 1px solid var(--line-strong);
-  font-family: var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.005em;
 }
 
 .mode-tag.race {
@@ -916,4 +918,28 @@
   background: var(--surface-3);
   border: 1px solid var(--line-strong);
   color: var(--ink);
+}
+
+/* lobby: profile at the top, the actions in the thumb zone, the note right under them */
+.together .screen-inner {
+  min-height: 100%;
+}
+
+.together .screen-inner > .cta-big {
+  margin-top: auto;
+}
+
+.together .o-about {
+  margin: 0 2px;
+  text-align: left;
+}
+
+/* puzzle choice: plain rows; only the chosen one is framed */
+.pz {
+  background: transparent;
+  box-shadow: none;
+}
+
+.pz:hover {
+  background: var(--surface);
 }

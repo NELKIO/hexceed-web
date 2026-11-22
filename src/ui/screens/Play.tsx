@@ -4,7 +4,7 @@ import { getLang, plural, t } from '../../i18n';
 import { goBack, navigate } from '../../router';
 import { getLevel, isKnownLevel, levelPos, nextLevelId, useCampaign, WORLDS, worldUnlocked } from '../../levels';
 import { GameView } from '../game/GameView';
-import { addEndlessTotals, bumpEndless, dailyNumber, dailyStreak, findProgress, loadBest, loadEndlessStats, loadProgress, saveDaily, saveLast } from '../../storage';
+import { addEndlessTotals, bumpEndless, dailyNumber, dailyStreak, findProgress, levelHash, loadBest, loadEndlessStats, loadProgress, saveDaily, saveLast, saveProgress } from '../../storage';
 import { checkLevel, DIFFICULTIES, makeDaily, makeEndless, todayISO, type Difficulty } from '../engine';
 import { showNotice } from '../notice';
 import { IconRestart } from '../icons';
@@ -39,7 +39,7 @@ function Loading({ back, text, retry }: { back: string; text?: string; retry?: (
  * A generated level: the saved run's own level when there is one (validated), else generated.
  * A worker timeout ends in a "try again" state instead of blocking the main thread.
  */
-function useGenerated(storeId: string, deps: unknown[], make: () => Promise<Level>): { level: Level | null; failed: boolean; retry: () => void } {
+function useGenerated(storeId: string, deps: unknown[], make: () => Promise<Level>, fresh = false): { level: Level | null; failed: boolean; retry: () => void } {
   const [level, setLevel] = useState<Level | null>(null);
   const [failed, setFailed] = useState(false);
   const [round, setRound] = useState(0);
@@ -48,7 +48,19 @@ function useGenerated(storeId: string, deps: unknown[], make: () => Promise<Leve
     setLevel(null);
     setFailed(false);
     const saved = checkLevel(loadProgress(storeId)?.level);
-    if (saved) setLevel({ ...saved, id: storeId });
+    if (saved && fresh) {
+      // the daily: a run saved with an older generator's level is dropped when today's level changed
+      make().then(
+        (l) => {
+          if (!alive) return;
+          if (levelHash(l) !== levelHash(saved)) {
+            saveProgress(storeId, null);
+            setLevel(l);
+          } else setLevel({ ...saved, id: storeId });
+        },
+        () => alive && setLevel({ ...saved, id: storeId }),
+      );
+    } else if (saved) setLevel({ ...saved, id: storeId });
     else
       make().then(
         (l) => alive && setLevel(l),
@@ -120,7 +132,7 @@ function LockedRedirect() {
 export function DailyScreen() {
   useSettings();
   const date = todayISO();
-  const { level, failed, retry } = useGenerated(`daily-${date}`, [date], () => makeDaily(date));
+  const { level, failed, retry } = useGenerated(`daily-${date}`, [date], () => makeDaily(date), true);
   if (!level) return <Loading back="/" retry={failed ? retry : undefined} />;
   const [y, m, d] = date.split('-');
   const no = dailyNumber(date);

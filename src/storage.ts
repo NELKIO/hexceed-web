@@ -386,12 +386,18 @@ export function bumpUiCount(k: string): number {
 
 // ------------------------------------------------------------------ cached daily level
 
-/** The generated daily level of a date (generated once per day, also before it is opened). */
-export function loadDailyLevel(date: string): unknown | null {
+/**
+ * The generated daily level of a date (generated once per day, also before it is opened).
+ * With `ver` (the generator version) a level made by another generator version counts as missing,
+ * so a generator update regenerates today's puzzle.
+ */
+export function loadDailyLevel(date: string, ver?: string): unknown | null {
   const v = read<unknown>('dailyLevel', null);
-  return isObj(v) && v.date === date ? v.level ?? null : null;
+  if (!isObj(v) || v.date !== date) return null;
+  if (ver !== undefined && (v.ver ?? '') !== ver) return null;
+  return v.level ?? null;
 }
 
-export function saveDailyLevel(date: string, level: unknown): void {
-  write('dailyLevel', { date, level });
+export function saveDailyLevel(date: string, level: unknown, ver = ''): void {
+  write('dailyLevel', { date, ver, level });
 }

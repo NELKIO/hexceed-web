@@ -184,8 +184,9 @@ function Zones({ board, layout, values, done }: { board: Board; layout: Layout; 
         <g key={z} class={done[z] ? 'zone done' : 'zone'}>
           <path class="zone-line" d={g.d} />
           <g transform={`translate(${g.badge[0].toFixed(1)} ${g.badge[1].toFixed(1)})`} class="zone-badge">
-            <rect x={-14} y={-12} width={28} height={24} rx={4} />
-            <text font-size={15} text-anchor="middle" dominant-baseline="central">
+            {/* >= 14 px on a phone */}
+            <rect x={-17} y={-14} width={34} height={28} rx={5} />
+            <text font-size={21} text-anchor="middle" dominant-baseline="central">
               {values[z]}
             </text>
           </g>
@@ -296,7 +297,8 @@ export function BoardLayer(p: BoardLayerProps) {
       </g>
       <FogSilhouette layout={layout} cells={p.cells} />
       <Halos cells={p.cells} wave={p.glowWave ?? null} />
-      {p.wallSegs ? <Walls {...(([d, dim]) => ({ d, dim }))(splitWalls(p.wallSegs, p.cells))} /> : <Walls d={p.staticWalls} />}
+      {/* walls with fog on both sides are not drawn: they would float in empty space */}
+      {p.wallSegs ? <Walls d={splitWalls(p.wallSegs, p.cells)[0]} /> : <Walls d={p.staticWalls} />}
       <Portals board={p.board} layout={layout} portals={p.portals} />
       <Zones board={p.board} layout={layout} values={p.zoneValues} done={p.zoneDone} />
       <Links board={p.board} layout={layout} done={p.linkDone} cells={p.cells} />
@@ -306,8 +308,10 @@ export function BoardLayer(p: BoardLayerProps) {
       )}
       {p.hintCell >= 0 && (
         <g class="hint-target" transform={`translate(${layout.px[p.hintCell][0].toFixed(1)} ${layout.px[p.hintCell][1].toFixed(1)})`}>
-          <path class="hint-ring r1" d={layout.outline[p.hintCell] ?? OUTLINE_PATH} />
           <path class="hint-ring r2" d={layout.outline[p.hintCell] ?? OUTLINE_PATH} />
+          <path class="hint-ring r1" d={layout.outline[p.hintCell] ?? OUTLINE_PATH} />
+          {/* a marker above the cell: findable even inside a large highlighted area */}
+          <path class="hint-dot" d={`M0,${(-S * 0.88).toFixed(1)} l-7,-11 h14 z`} />
         </g>
       )}
       {p.press && (

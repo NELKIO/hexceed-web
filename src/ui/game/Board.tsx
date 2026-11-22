@@ -28,6 +28,10 @@ export interface BoardHandle {
   show(i: number): void;
   /** When none of the cells is on screen, pan to the first one. */
   showAny(cells: number[]): void;
+  /** Pan (and zoom out only if needed) so that all cells sit between `top` and `bottom` insets (px). */
+  frame(cells: number[], top?: number, bottom?: number): void;
+  /** Vertical screen position of a cell, 0 = top of the board area, 1 = bottom. */
+  screenY(i: number): number;
   cellEl(i: number): SVGGElement | null;
   spawn(kind: ParticleKind, i: number, delay?: number): void;
   spawnAt(kind: ParticleKind, x: number, y: number, delay?: number): void;
@@ -108,6 +112,8 @@ function minCellPx(): number {
   try {
     const coarse = matchMedia('(pointer: coarse)').matches;
     if (coarse || Math.min(innerWidth, innerHeight) < 520) return 25;
+    // desktop: big boards get readable cells and scroll, instead of shrinking into a corner
+    if (innerWidth >= 900 && innerHeight >= 600) return 30;
   } catch {
     /* ignore */
   }
@@ -178,6 +184,8 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     if (!W || !H) return null;
     const L = pr.current.layout;
     const pad = pr.current.pad ?? 14;
+    // the board fades out over 24 px under the bars: keep cells clear of that band
+    const padY = pad + 14;
     const maxCell = pr.current.maxCell ?? 54;
     const pb = pr.current.padBottom ?? 0;
     const Hh = H - pb;
@@ -191,15 +199,15 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     }
     const bw = B.maxX - B.minX, bh = B.maxY - B.minY;
     const kMin = Math.min(minCellPx(), maxCell) / S;
-    const kW = (W - pad * 2) / bw, kH = (Hh - pad * 2) / bh;
+    const kW = (W - pad * 2) / bw, kH = (Hh - padY * 2) / bh;
     let k = Math.min(portrait ? kW : Math.min(kW, kH), maxCell / S);
     if (k < kMin) k = kMin;
     const M = initial ? mustBox(L, pr.current.must) : null;
     if (M) {
-      const km = Math.min((W - pad * 2) / (M.maxX - M.minX + 8), (Hh - pad * 2) / (M.maxY - M.minY + 8));
+      const km = Math.min((W - pad * 2) / (M.maxX - M.minX + 8), (Hh - padY * 2) / (M.maxY - M.minY + 8));
       if (k > km) k = km;
     }
-    const halfW = (W / 2 - pad) / k, halfH = (Hh / 2 - pad) / k;
+    const halfW = (W / 2 - pad) / k, halfH = (Hh / 2 - padY) / k;
     let cx = (B.minX + B.maxX) / 2, cy = (B.minY + B.maxY) / 2;
     const overX = bw / 2 > halfW, overY = bh / 2 > halfH;
     if (overX || overY) {
@@ -311,6 +319,49 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       if (sy < m) dy = m - sy;
       else if (sy > H - m) dy = H - m - sy;
       if (dx || dy) animateTo({ k: v.k, tx: v.tx + dx, ty: v.ty + dy }, 420, true);
+    },
+    frame: (cells, top = 0, bottom = 0) => {
+      const el = wrap.current;
+      const L = pr.current.layout;
+      if (!el || !cells.length) return;
+      const W = el.clientWidth, H = el.clientHeight;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const i of cells) {
+        const p = L.px[i];
+        if (!p) continue;
+        minX = Math.min(minX, p[0] - S);
+        maxX = Math.max(maxX, p[0] + S);
+        minY = Math.min(minY, p[1] - S);
+        maxY = Math.max(maxY, p[1] + S);
+      }
+      if (minX === Infinity) return;
+      const v = view.current;
+      const padX = 12, y0 = top + 28, y1 = H - bottom - 28;
+      // zoom out only when the cells cannot fit at the current zoom
+      let k = v.k;
+      const kFit = Math.min((W - padX * 2) / (maxX - minX), Math.max(40, y1 - y0) / (maxY - minY));
+      if (kFit < k) k = Math.max(kFit, Math.min(v.k, fullK()) * 0.6);
+      let tx = v.tx * (k / v.k) + (W / 2) * (1 - k / v.k), ty = v.ty * (k / v.k) + (H / 2) * (1 - k / v.k);
+      const sx0 = minX * k + tx, sx1 = maxX * k + tx, sy0 = minY * k + ty, sy1 = maxY * k + ty;
+      if (sx1 - sx0 <= W - padX * 2) {
+        if (sx0 < padX) tx += padX - sx0;
+        else if (sx1 > W - padX) tx -= sx1 - (W - padX);
+      } else tx = W / 2 - ((minX + maxX) / 2) * k;
+      if (sy1 - sy0 <= y1 - y0) {
+        if (sy0 < y0) ty += y0 - sy0;
+        else if (sy1 > y1) ty -= sy1 - y1;
+      } else ty = (y0 + y1) / 2 - ((minY + maxY) / 2) * k;
+      if (Math.abs(tx - v.tx) > 1 || Math.abs(ty - v.ty) > 1 || Math.abs(k - v.k) > 0.002) {
+        userMoved.current = true;
+        animateTo({ k, tx, ty }, 460, true);
+      }
+    },
+    screenY: (i) => {
+      const el = wrap.current;
+      const p = pr.current.layout.px[i];
+      if (!el || !p) return 0.5;
+      const v = view.current;
+      return (p[1] * v.k + v.ty) / Math.max(1, el.clientHeight);
     },
     showAny: (cells) => {
       const el = wrap.current;

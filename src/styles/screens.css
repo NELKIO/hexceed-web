@@ -1034,3 +1034,33 @@
   fill-opacity: 0;
   stroke-width: 1.8;
 }
+
+/* explainer overview: every new mechanic at a glance */
+.ex-overview {
+  gap: 14px;
+}
+
+.ex-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 2px 12px;
+}
+
+.ex-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 14.5px;
+  font-weight: 550;
+}
+
+.ex-list .mech-ic {
+  width: 34px;
+  height: 36px;
+  flex: none;
+  overflow: visible;
+}

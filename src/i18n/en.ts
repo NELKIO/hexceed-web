@@ -125,7 +125,7 @@ export const en: Record<keyof typeof ru, string> = {
   h_counterAll: 'Counter: every light is found — the rest is empty',
   h_generic: 'The clue “{src}” only fits if this is {cell}',
   h_pair: 'Compare {a} and {b}: together they show this is {cell}',
-  h_many: 'Combine {list}: only then everything fits — this is {cell}',
+  h_many: 'Match {list}: only then everything fits — this is {cell}',
   h_tryContra: 'Suppose this were {other}. Then {a} no longer fits — so it is {cell}',
   h_tryChain: 'Suppose this were {other}. Then {list} force their cells, and {last} no longer fits — so it is {cell}',
 
@@ -418,4 +418,11 @@ export const en: Record<keyof typeof ru, string> = {
   pl_hint: 'hint|hints',
   res_perfect: 'All three stars: no mistakes, no hints',
   res_lost: '−{stars}: {what}',
+  src_gemclueKind: 'Bright light ({kind}) {v}',
+  h_counterArea: '{total} {gemsWord} left in all; {src} takes {inside} of them, so {outside} remain outside. This is {cell}',
+  h_more: '{n} more',
+  toEndless: 'Difficulty',
+  toWorkshop: 'To workshop',
+  exOverview: 'New here: {n}',
+  exOverviewSub: 'One short card for each follows. You can skip them and find them later under «?» at the bottom.',
 };

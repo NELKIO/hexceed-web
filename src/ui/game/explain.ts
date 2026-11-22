@@ -9,6 +9,22 @@ import type { Deduction } from '../engine';
 
 type Case = 'nom' | 'acc';
 
+/** Mechanic title per clue kind (for naming the area of a bright light). */
+const KIND_TITLE: Partial<Record<string, TKey>> = {
+  line: 'm_line',
+  ring: 'm_ring',
+  cone: 'm_cone',
+  eye: 'm_eye',
+  radius: 'm_radius',
+  donut: 'm_donut',
+  triangle: 'm_triangle',
+  dot: 'm_dot',
+  swirl: 'm_swirl',
+  island: 'm_island',
+  chain: 'm_chain',
+  parity: 'm_parity',
+};
+
 /** Russian accusative of a clue name: feminine "-а" words turn to "-у" (Зона → Зону, Точка → Точку). */
 function accRu(name: string): string {
   if (getLang() !== 'ru') return name;
@@ -35,7 +51,11 @@ function baseName(g: Game, c: Constraint): string {
       const cell = g.board.level.cells[c.src.cell];
       const clue = clueOf(g, c);
       if (!clue) return t('src_num', { v });
-      if (cell.gem) return t('src_gemclue', { v });
+      if (cell.gem) {
+        // a bright light names its area kind: «Яркий огонёк (круг) 7»
+        const kind = clue.k !== 'num' && clue.k !== 'blank' ? KIND_TITLE[clue.k] : undefined;
+        return kind ? t('src_gemclueKind', { v, kind: t(kind).toLowerCase() }) : t('src_gemclue', { v });
+      }
       switch (clue.k) {
         case 'num':
           return clue.mod === 'together' ? t('src_together', { v }) : clue.mod === 'apart' ? t('src_apart', { v }) : t('src_num', { v });
@@ -124,10 +144,26 @@ export function explain(g: Game, d: Deduction, vals: Int8Array): string {
     if (c.kind === 'link') return t(c.value ? 'h_linkSame' : 'h_linkDiff', { cell });
     return t('h_generic', { src, cell });
   }
+  // the counter with one area clue: how many lights are left inside the area and outside it
+  const glob = reasons.find((c) => c.src.type === 'global' && c.kind === 'sum');
+  const areas = reasons.filter((c) => c !== glob);
+  if (glob && areas.length === 1 && areas[0].kind === 'sum') {
+    const left = (c: Constraint) => c.value - c.cells.reduce((n, j) => n + (vals[j] === 1 ? 1 : 0), 0);
+    const total = left(glob), inside = left(areas[0]);
+    if (total >= inside && inside >= 0)
+      return t('h_counterArea', { total, gemsWord: plural(total, 'gems1', 'gems2', 'gems5'), src: sourceName(g, areas[0]), inside, outside: total - inside, cell });
+  }
   if (reasons.length === 2) return t('h_pair', { a: sourceName(g, reasons[0], 'acc'), b: sourceName(g, reasons[1], 'acc'), cell });
   if (reasons.length > 2) {
-    const names = [...new Set(reasons.map((c) => sourceName(g, c, 'acc')))];
-    return t('h_many', { list: names.slice(0, 4).join(', '), cell });
+    // every clue counts: equal names are grouped as "Число 1 ×2", never silently merged
+    const counts = new Map<string, number>();
+    for (const c of reasons) {
+      const n = sourceName(g, c, 'acc');
+      counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+    const names = [...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
+    const shown = names.length > 5 ? [...names.slice(0, 4), t('h_more', { n: names.length - 4 })] : names;
+    return t('h_many', { list: joinList(shown), cell });
   }
   return t('h_generic', { src: t('src_global'), cell });
 }

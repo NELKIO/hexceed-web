@@ -15,6 +15,8 @@ export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
 type SolverMod = { nextDeduction?: (b: Board, v: Int8Array, c: Constraint[]) => Deduction | null };
 type GenMod = {
+  /** Bumped by the generator whenever the same seed would give a different level. */
+  GEN_VERSION?: string;
   dailyLevel?: (dateISO: string, mechanics?: MechanicId[]) => Level;
   endlessLevel?: (seed: number | string, d: Difficulty, mechanics?: MechanicId[]) => Level;
 };
@@ -173,9 +175,17 @@ const workerAvailable = async () => !!(await getWorker());
  * Today's puzzle: cached per date (generated once — the menu pre-generates it while idle).
  * `mechanics` restricts it to what the player has unlocked.
  */
+/** Generator version ('' when the generator does not export one). */
+async function genVersion(): Promise<string> {
+  const g = await loadGen();
+  const v = g?.GEN_VERSION;
+  return typeof v === 'string' ? v : '';
+}
+
 export async function makeDaily(dateISO: string, mechanics?: MechanicId[]): Promise<Level> {
   const id = `daily-${dateISO}`;
-  const cached = checkLevel(loadDailyLevel(dateISO));
+  const ver = await genVersion();
+  const cached = checkLevel(loadDailyLevel(dateISO, ver));
   if (cached) return { ...cached, id };
   let level: Level | null = null;
   if (await workerAvailable()) {
@@ -192,14 +202,14 @@ export async function makeDaily(dateISO: string, mechanics?: MechanicId[]): Prom
   }
   if (!level) return sampleFor(dateISO, id, 'invalid level');
   level = { ...level, id };
-  saveDailyLevel(dateISO, level);
+  saveDailyLevel(dateISO, level, ver);
   return level;
 }
 
 /** Generate today's puzzle in the background (menu idle time) so opening it is instant. */
 export function pregenDaily(mechanics?: MechanicId[]): void {
   const date = todayISO();
-  if (loadDailyLevel(date)) return;
+  // makeDaily returns the cached level at once when it is from this generator version
   const run = () => void makeDaily(date, mechanics).catch(() => undefined);
   const w = window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
   if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 4000 });

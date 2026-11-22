@@ -64,6 +64,8 @@ interface Toast {
   text: string;
   kind: 'hint' | 'info' | 'lock' | 'danger';
   key: number;
+  /** Shown at the top of the board (the hinted cell is in the lower part). */
+  top?: boolean;
 }
 
 const coarsePointer = () => {
@@ -165,6 +167,7 @@ export function GameView(props: GameViewProps) {
   const [onbMark, setOnbMark] = useState(-1);
   const [flashCells, setFlashCells] = useState<{ cells: number[]; key: number } | null>(null);
   const [miss, setMiss] = useState<{ cell: number; key: number; n: number } | null>(null);
+  const [rotCue, setRotCue] = useState(false);
   const anchor = useRef<[number, number] | null>(init.anchor);
   const [confirm, setConfirm] = useState(false);
   const [win, setWin] = useState<WinInfo | null>(null);
@@ -290,9 +293,9 @@ export function GameView(props: GameViewProps) {
     setTimeout(() => showToast(t('panTip'), 'info', 3400), 700);
   };
 
-  const showToast = (text: string, kind: Toast['kind'] = 'info', ms = 4200) => {
+  const showToast = (text: string, kind: Toast['kind'] = 'info', ms = 4200, top = false) => {
     clearTimeout(toastTimer.current);
-    setToast({ text, kind, key: Date.now() });
+    setToast({ text, kind, key: Date.now(), top });
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
   };
 
@@ -634,10 +637,23 @@ export function GameView(props: GameViewProps) {
   };
 
   // ---------------------------------------------------------------- hint
+  /**
+   * Bring the hinted cell and the clues behind it into view, clear of the hint toast. The toast goes
+   * to the top when the cell sits in the lower third. Returns true for "toast at the top".
+   */
+  const frameHint = (cell: number, reasons: Constraint[]): boolean => {
+    const b = boardRef.current;
+    if (!b) return false;
+    const top = b.screenY(cell) > 0.62;
+    const cells = [cell, ...reasons.flatMap((c) => (c.src.type === 'cell' ? [c.src.cell] : []))];
+    b.frame(cells, top ? 96 : 0, top ? 0 : 96);
+    return top;
+  };
+
   const doHint = async () => {
     if (g.finishedAt || busy.current) return;
     if (hint && g.state[hint.cell] === CellState.Hidden) {
-      showToast(hint.text, 'hint', 6500);
+      showToast(hint.text, 'hint', 6500, frameHint(hint.cell, hint.reasons));
       sfx.hint();
       return;
     }
@@ -661,8 +677,7 @@ export function GameView(props: GameViewProps) {
     session?.local({ t: 'hint', cell: d.cell }, g);
     const text = explain(g, d, vals);
     setHint({ cell: d.cell, gem: d.gem, reasons: d.reasons, text });
-    boardRef.current?.show(d.cell);
-    showToast(text, 'hint', 7000);
+    showToast(text, 'hint', 7000, frameHint(d.cell, d.reasons));
     sfx.hint();
     buzz(6);
     if (d.reasons.some((c) => c.src.type === 'global')) setCounterPulse((c) => c + 1);
@@ -1061,7 +1076,7 @@ export function GameView(props: GameViewProps) {
         {flash > 0 && <div class="flash" key={flash} />}
         {boardGlow > 0 && !reduced && <div class="win-glow" key={'w' + boardGlow} />}
         {toast && toastText && (
-          <div class={'toast ' + toast.kind} key={toast.key} onClick={() => setToast(null)} role="status">
+          <div class={'toast ' + toast.kind + (toast.top ? ' top' : '')} key={toast.key} onClick={() => setToast(null)} role="status">
             {toast.kind === 'hint' && <IconBulb />}
             <span>{toastText}</span>
           </div>
@@ -1088,10 +1103,16 @@ export function GameView(props: GameViewProps) {
             {g.hintsUsed > 0 && <i class="badge">{g.hintsUsed}</i>}
           </button>
           {init.phased && canRotate() && (
-            <button class="tool rot" onClick={() => doRotate()} aria-label={`${t('rotate')} (${phaseNow % period + 1}/${period})`} title={`${t('rotate')} (T)`} disabled={!!win}>
+            <button class={'tool rot' + (rotCue ? ' cue' : '')} onClick={() => doRotate()} aria-label={`${t('rotate')} (${phaseNow % period + 1}/${period})`} title={`${t('rotate')} (T)`} disabled={!!win}>
               <span class="rf-ic" key={rotPulse}>
                 <IconRotate />
               </span>
+              <span class="tool-label">{t('rotate')}</span>
+              {rotCue && (
+                <span class="rot-cue" aria-hidden="true">
+                  {t('rotate')}
+                </span>
+              )}
               {period > 1 && period <= 6 && (
                 <span class="rot-pips" aria-hidden="true">
                   {Array.from({ length: period }, (_, k) => (
@@ -1109,6 +1130,11 @@ export function GameView(props: GameViewProps) {
         mechs={explainer.mechs}
         open={explainer.open}
         onClose={() => {
+          // first meeting with rotation: point at the button once
+          if (explainer.teach && init.phased && canRotate() && explainer.mechs.some((m) => m === 'rotate' || m === 'switch')) {
+            setRotCue(true);
+            window.setTimeout(() => setRotCue(false), 3200);
+          }
           if (explainer.teach) markSeen(explainer.mechs);
           setExplainer((e) => ({ ...e, open: false }));
           setDealt(true);
@@ -1159,7 +1185,7 @@ export function GameView(props: GameViewProps) {
                 }}
                 autoFocus
               >
-                <span>{props.next ? props.next.label : props.backTo === '/' ? t('toMenu') : t('toMap')}</span>
+                <span>{props.next ? props.next.label : backLabel(props.backTo)}</span>
               </button>
               <button class="btn ghost" onClick={() => restart()}>
                 <IconRestart />
@@ -1173,7 +1199,7 @@ export function GameView(props: GameViewProps) {
               ) : props.next ? (
                 <button class="btn ghost" onClick={() => goBack(props.backTo)}>
                   <IconBack />
-                  <span>{props.backTo === '/' ? t('toMenu') : t('toMap')}</span>
+                  <span>{backLabel(props.backTo)}</span>
                 </button>
               ) : null}
             </div>
@@ -1182,6 +1208,15 @@ export function GameView(props: GameViewProps) {
       </Sheet>
     </div>
   );
+}
+
+/** Where the "back" button of the result leads, in words. */
+function backLabel(to: string): string {
+  if (to === '/') return t('toMenu');
+  if (to.startsWith('/worlds')) return t('toMap');
+  if (to.startsWith('/endless')) return t('toEndless');
+  if (to.startsWith('/workshop')) return t('toWorkshop');
+  return t('back');
 }
 
 /** One specific sentence under the stars: why this many. */

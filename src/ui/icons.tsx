@@ -39,8 +39,9 @@ export const IconHexes = (p: P) =>
   );
 export const IconBulb = (p: P) => base([<path d="M9 18h6M10 21h4" />, <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z" />], p);
 export const IconRestart = (p: P) => base([<path d="M4 12a8 8 0 1 0 2.4-5.7" />, <path d="M4 4.5V9h4.5" />], p, 1.7);
+/** Rotate the rotating cells: a hex inside a turning arrow (unlike Restart's bare arrow). */
 export const IconRotate = (p: P) =>
-  base([<path d="M20 12a8 8 0 0 1-13.7 5.7" />, <path d="M4 12a8 8 0 0 1 13.7-5.7" />, <path d="M17.7 2.8v3.9h-3.9M6.3 21.2v-3.9h3.9" />], p, 1.7);
+  base([<path d="M12 8.2l3.3 1.9v3.8L12 15.8l-3.3-1.9v-3.8z" />, <path d="M20 12a8 8 0 1 1-2.35-5.65" />, <path d="M18.2 2.8v3.9h-3.9" />], p, 1.6);
 export const IconSkull = (p: P) =>
   base([<path d="M12 3a7.5 7.5 0 0 0-4.5 13.5V19a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-2.5A7.5 7.5 0 0 0 12 3z" />, <circle cx="9.3" cy="11.5" r="1.4" fill="currentColor" />, <circle cx="14.7" cy="11.5" r="1.4" fill="currentColor" />, <path d="M10.5 20v-2M13.5 20v-2" />], p);
 export const IconShield = (p: P) => base([<path d="M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z" />], p);

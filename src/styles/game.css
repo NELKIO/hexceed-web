@@ -261,6 +261,65 @@
   flex-direction: column;
 }
 
+.tool-label {
+  display: none;
+}
+
+/* wide screens: the rotate button says what it does */
+@media (min-width: 900px) and (min-height: 600px) {
+  .tool.rot {
+    width: auto;
+    flex-direction: row;
+    gap: 8px;
+    padding: 0 14px 0 12px;
+  }
+  .tool.rot .rf-ic {
+    margin-top: 0;
+  }
+  .tool.rot .tool-label {
+    display: inline;
+    font-size: 14px;
+    font-weight: 550;
+  }
+  .tool.rot .rot-pips {
+    bottom: 5px;
+  }
+}
+
+/* first meeting: the button pulses once with a small label above it */
+.tool.rot.cue {
+  color: var(--accent);
+  background: var(--accent-soft);
+  animation: cuePulse 1s var(--ease) 2;
+}
+
+@keyframes cuePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.rot-cue {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-3);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fadeIn 0.2s var(--ease);
+}
+
 .rf-ic {
   display: grid;
   place-items: center;
@@ -449,6 +508,19 @@
   flex: none;
   color: var(--accent);
   margin-top: 1px;
+}
+
+.toast.top {
+  top: 10px;
+  bottom: auto;
+  animation-name: toastInTop;
+}
+
+@keyframes toastInTop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
 }
 
 @keyframes toastIn {
@@ -1035,7 +1107,7 @@
 }
 
 .fogf .own-walls {
-  opacity: 0.16;
+  display: none;
 }
 
 .portal {
@@ -1190,8 +1262,9 @@
 }
 
 .hl.t8 .hl-cell {
-  fill-opacity: 0.12;
-  stroke-width: 2.4;
+  fill-opacity: 0.035;
+  stroke-width: 1.6;
+  stroke-opacity: 0.75;
 }
 
 .hl-src {
@@ -1256,11 +1329,22 @@
 }
 
 /* hint target: an accent ring that pulses outward */
+/* hint target: the one cell to act on — a warm ring, stronger than any area outline */
 .hint-ring {
   fill: none;
-  stroke: var(--hint);
-  stroke-width: 2.6;
+  stroke: var(--lume);
+  stroke-width: 3.2;
   pointer-events: none;
+}
+
+.hint-ring.r2 {
+  fill: var(--lume-dim);
+}
+
+.hint-target .hint-dot {
+  fill: var(--lume);
+  stroke: var(--bg);
+  stroke-width: 2;
 }
 
 .hint-ring.r1 {
@@ -1893,4 +1977,29 @@
 :root.cb .t-fog {
   stroke-dasharray: 0.1 7;
   stroke-width: 2;
+}
+
+/* wide screens: the rotate button is a labelled pill (icon + word, pips under the word) */
+@media (min-width: 900px) and (min-height: 600px) {
+  .g-tools .tool.rot {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    gap: 8px;
+    padding: 0 14px 0 12px;
+  }
+  .g-tools .tool.rot .rf-ic {
+    margin-top: 0;
+  }
+  /* the button already says it: the pulse alone is the cue */
+  .g-tools .tool.rot .rot-cue {
+    display: none;
+  }
+  .g-tools .tool.rot .rot-pips {
+    bottom: 6px;
+    left: 40px;
+    right: 14px;
+    justify-content: flex-start;
+  }
 }

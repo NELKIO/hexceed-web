@@ -14,6 +14,8 @@ import { WORLDS } from '../../levels';
 import { dailyNumber, dailyStreak, loadDaily } from '../../storage';
 import { pregenDaily, todayISO } from '../engine';
 import { useSettings } from '../settings';
+import { wt } from '../workshop/i18n';
+import { IcPencil } from '../workshop/icons';
 
 
 /** A mode card: line icon, title, a mono meta line; an optional mono badge top-right. */
@@ -116,6 +118,14 @@ export function MenuScreen() {
               />
               <Card icon={<IconInfinity />} title={t('endless')} meta={t('endlessSub')} onClick={() => go('/endless')} />
               <Card icon={<IconUsers />} title={t('together')} meta={t('togetherSub')} onClick={() => go('/together')} />
+              {/* wide screens: the workshop is one more row of the list (on phones it is a small link below) */}
+              <button class="mcard mc-wide ml-ws-card" onClick={() => go('/workshop')}>
+                <span class="mc-ic">
+                  <IcPencil />
+                </span>
+                <span class="mc-t">{wt('ws_title')}</span>
+                <span class="mc-s">{wt('ws_menuSub')}</span>
+              </button>
             </div>
 
             <div class="mlinks">
@@ -136,6 +146,10 @@ export function MenuScreen() {
               <button onClick={() => go('/settings')}>
                 <IconGear />
                 <span>{t('settings')}</span>
+              </button>
+              <button class="ml-ws" onClick={() => go('/workshop')}>
+                <IcPencil />
+                <span>{wt('ws_title')}</span>
               </button>
             </div>
           </nav>

@@ -45,6 +45,8 @@ export interface GameViewProps {
   shareText?: (w: WinInfo) => string;
   /** Online co-op / race: the game reports to the session instead of storing results. */
   session?: GameSession;
+  /** Do not record a best result (e.g. a test run from the level editor). */
+  noRecord?: boolean;
 }
 
 type Mode = 'open' | 'gem';
@@ -675,7 +677,7 @@ export function GameView(props: GameViewProps) {
     clock.current.base = time;
     const s = starsOf(g);
     // online results do not count as personal bests
-    const rec = session ? { newBest: false, prev: undefined } : recordResult(props.storeKey, { stars: s, time, mistakes: g.mistakes, hints: g.hintsUsed });
+    const rec = session || props.noRecord ? { newBest: false, prev: undefined } : recordResult(props.storeKey, { stars: s, time, mistakes: g.mistakes, hints: g.hintsUsed });
     if (!coop) saveProgress(props.storeKey, null);
     const info: WinInfo = { stars: s, time, mistakes: g.mistakes, hints: g.hintsUsed, newBest: rec.newBest, prev: rec.prev };
     setWin(info);

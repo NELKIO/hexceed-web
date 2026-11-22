@@ -307,8 +307,8 @@ export function resetAll(): void {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      // settings and the online profile (nickname, device id) are not progress
-      if (k && k.startsWith(P) && k !== P + 'settings' && !k.startsWith(P + 'net:')) keys.push(k);
+      // settings, the online profile (nickname, device id) and the workshop's own levels are not progress
+      if (k && k.startsWith(P) && k !== P + 'settings' && !k.startsWith(P + 'net:') && !k.startsWith(P + 'ws:')) keys.push(k);
     }
     keys.forEach((k) => localStorage.removeItem(k));
   } catch {

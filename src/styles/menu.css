@@ -319,8 +319,30 @@
 
 .mlinks {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+}
+
+/* the workshop: a fourth small link on phones, a wide row of the mode list on wide screens */
+.ml-ws-card {
+  display: none;
+}
+
+.mcard.mc-wide {
+  grid-column: 1 / -1;
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.mc-wide .mc-t {
+  font-size: 16px;
+}
+
+.mc-wide .mc-s {
+  margin-left: auto;
 }
 
 .mlinks button {
@@ -350,9 +372,19 @@
   flex: none;
 }
 
-@media (max-width: 440px) {
+@media (max-width: 600px) {
   .mlinks svg {
     display: none;
+  }
+}
+
+@media (max-width: 440px) {
+  .mlinks {
+    gap: 6px;
+  }
+  .mlinks button {
+    font-size: 13px;
+    padding: 0 4px;
   }
 }
 
@@ -368,6 +400,15 @@
 
 /* wide screens: menu on the left, the board on the right */
 @media (min-width: 900px) and (min-height: 560px) {
+  .ml-ws-card {
+    display: flex;
+  }
+  .mlinks {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .mlinks .ml-ws {
+    display: none;
+  }
   .menu-inner {
     justify-content: center;
     padding-top: calc(var(--safe-top) + 40px);

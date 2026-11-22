@@ -8,6 +8,7 @@ import { DailyScreen, EndlessScreen, PlayScreen } from './screens/Play';
 import { SettingsScreen } from './screens/Settings';
 import { HowScreen } from './screens/How';
 import { TogetherScreen } from './screens/Together';
+import { registerWorkshopRoutes } from './workshop/entry';
 
 export function registerBuiltinRoutes(): void {
   // registered from the most generic to the most specific: later registrations are matched first
@@ -20,4 +21,5 @@ export function registerBuiltinRoutes(): void {
   registerRoute({ name: 'how', pattern: /^\/how\/?$/, component: HowScreen });
   registerRoute({ name: 'together', pattern: /^\/together\/?$/, component: TogetherScreen });
   registerRoute({ name: 'room', pattern: /^\/room\/([A-Za-z0-9_-]+)\/?$/, component: TogetherScreen });
+  registerWorkshopRoutes();
 }

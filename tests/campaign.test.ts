@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { act, activeConstraints, knownVals, newGame } from '../src/core/game';
-import { ahaSteps, teachOK } from '../src/core/generator';
+import { ahaCells, ahaSteps, deepCells, hardRun, teachOK } from '../src/core/generator';
 import { buildBoard, cellConstraintsAll, portalTarget } from '../src/core/rules';
 import { nextDeduction, solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level } from '../src/core/types';
@@ -76,11 +76,14 @@ describe('campaign.json', () => {
     expect(avg(of(0))).toBeLessThanOrEqual(1.5);
     expect(avg(of(1))).toBeLessThanOrEqual(1.5);
     const late = [9, 10, 11, 12].flatMap(of);
-    expect(avg(late)).toBeGreaterThanOrEqual(5); // human-solvability limits (≤ 4 shallow aha steps) cap late worlds a little lower
-    expect(late.filter((d) => d >= 7).length).toBeGreaterThanOrEqual(4);
+    // human-solvability limits (few shallow aha cells, no long hard runs) cap the late worlds
+    expect(avg(late)).toBeGreaterThanOrEqual(4.5);
+    expect(late.filter((d) => d >= 6).length).toBeGreaterThanOrEqual(10);
     const finale = of(WORLDS.length - 1);
-    expect(avg(finale)).toBeGreaterThanOrEqual(8);
-    expect(finale.filter((d) => d >= 9).length).toBeGreaterThanOrEqual(4);
+    expect(avg(finale)).toBeGreaterThanOrEqual(7.5);
+    expect(finale.filter((d) => d >= 9).length).toBeGreaterThanOrEqual(2);
+    // smooth rise: never more than one point down from one level to the next
+    for (let k = 1; k < finale.length; k++) expect(finale[k], `finale ${k}`).toBeGreaterThanOrEqual(finale[k - 1] - 1);
   });
 
   it('world 1 is friendly: tiny, fog-free, no counter tricks; fog taught on a tiny board', () => {
@@ -177,9 +180,11 @@ describe('campaign.json', () => {
         const l = levels.find((x) => x.id === id)!;
         const r = solveDetailed(l, { trace: true });
         const aha = ahaSteps(r);
-        const max = l.teach ? (w.n <= 3 ? 0 : 1) : w.n <= 3 ? 0 : w.n <= 8 ? 2 : last ? 10 : 4;
-        expect(aha.length, id).toBeLessThanOrEqual(max);
+        const max = l.teach ? (w.n <= 3 ? 0 : 2) : w.n <= 3 ? 0 : w.n <= 8 ? 4 : last ? 14 : 7;
+        expect(ahaCells(r), id).toBeLessThanOrEqual(max);
+        if (w.n > 3) expect(hardRun(r), id).toBeLessThanOrEqual(l.teach ? 2 : 3);
         if (!last) for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, id).toBe(true);
+        else expect(deepCells(r), id).toBeLessThanOrEqual(4);
         const b = buildBoard(l);
         const safe = l.cells.filter((c) => !c.gem).length;
         const blank = l.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
@@ -190,14 +195,14 @@ describe('campaign.json', () => {
         l.cells.forEach((_, i) => cellConstraintsAll(b, i).forEach((c) => c.cells.forEach((j) => covered.add(j))));
         for (const z of l.zones ?? []) z.cells.forEach((j) => covered.add(j));
         for (const k of l.links ?? []) (covered.add(k.a), covered.add(k.b));
-        l.cells.forEach((c, i) => { if (!c.start) expect(covered.has(i), `${id} cell ${i}`).toBe(true); });
+        l.cells.forEach((c, i) => { if (!c.start && !c.lock) expect(covered.has(i), `${id} cell ${i}`).toBe(true); }); // locks open by themselves
         // islands at most 2 empty hexes apart
         const hexes = l.cells.flatMap((c) => [[c.q, c.r] as [number, number], ...(c.extra ?? [])]);
         const comps = islandsOf(hexes);
         for (let a = 1; a < comps.length; a++) {
           let m = Infinity;
           for (const [q1, r1] of comps[a]) for (let bI = 0; bI < comps.length; bI++) if (bI !== a) for (const [q2, r2] of comps[bI]) m = Math.min(m, (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2);
-          expect(m, id).toBeLessThanOrEqual(3);
+          expect(m, id).toBeLessThanOrEqual(2);
         }
       }
     });

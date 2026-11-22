@@ -82,24 +82,59 @@ export interface GenOptions {
   human?: HumanLimits;
 }
 
+/**
+ * Version of the generation output: bump whenever the same seed would produce a different level
+ * (the UI keys cached daily / endless levels by it).
+ */
+export const GEN_VERSION = '5.0';
+
 export interface HumanLimits {
+  /** Hard cells: moves that need more than one clue, a pair of clues or the counter alone. */
   maxAha: number;
+  /** Deep reasoning (contradiction chains, > 3 clues) allowed at all. */
   deep: boolean;
+  /** With deep: at most this many cells decided by contradiction search (tier 4). */
+  maxDeep?: number;
+  /** At most this many hard moves in a row (without an easy move in between). */
+  maxRun?: number;
 }
 
-/** Steps a person has to "see" (beyond single clues, pairs and the counter alone). */
-export function ahaSteps(r: { events: { tier: number; reasons: unknown[] }[] }) {
+type Trace = { events: { tier: number; reasons: unknown[]; cells: number[] }[] };
+
+/** Deduction events a person has to "see" (beyond single clues, pairs and the counter alone). */
+export function ahaSteps(r: Trace) {
   return r.events.filter((e) => e.tier >= 3);
+}
+
+/** Hard moves (cells) of a solution: each cell decided by an aha step counts. */
+export function ahaCells(r: Trace): number {
+  return ahaSteps(r).reduce((s, e) => s + e.cells.length, 0);
+}
+
+/** Longest run of hard moves without an easy move in between. */
+export function hardRun(r: Trace): number {
+  let run = 0, best = 0;
+  for (const e of r.events) {
+    if (e.tier >= 3) best = Math.max(best, (run += e.cells.length));
+    else run = 0;
+  }
+  return best;
+}
+
+/** Cells decided by contradiction search (tier 4). */
+export function deepCells(r: Trace): number {
+  return r.events.filter((e) => e.tier === 4).reduce((s, e) => s + e.cells.length, 0);
 }
 
 export function humanOK(r: DetailedReport, h: HumanLimits): boolean {
   if (!r.solved) return false;
-  const a = ahaSteps(r);
-  if (a.length > h.maxAha) return false;
-  return h.deep || a.every((e) => e.tier === 3 && e.reasons.length <= 3);
+  if (ahaCells(r) > h.maxAha) return false;
+  if (h.maxRun !== undefined && hardRun(r) > h.maxRun) return false;
+  if (!h.deep) return ahaSteps(r).every((e) => e.tier === 3 && e.reasons.length <= 3);
+  return h.maxDeep === undefined || deepCells(r) <= h.maxDeep;
 }
 
-export const defaultHuman = (T: number): HumanLimits => (T <= 3 ? { maxAha: 0, deep: false } : { maxAha: 4, deep: false });
+export const defaultHuman = (T: number): HumanLimits => (T <= 3 ? { maxAha: 0, deep: false } : { maxAha: 6, deep: false, maxRun: 3 });
 
 /** Solver calls made by the current generateLevel() (deterministic work budget). */
 let work = 0;
@@ -1362,7 +1397,7 @@ export function dailyLevel(dateISO: string, mechanics?: MechanicId[]): Level {
         attempts: 3,
         budget: 160,
         maxCols: 9,
-        human: { maxAha: 2, deep: false },
+        human: { maxAha: 4, deep: false, maxRun: 3 },
       };
     },
     4,
@@ -1378,9 +1413,9 @@ const ENDLESS: Record<
   { size: [number, number]; target: number; range: [number, number]; mechs: [number, number]; density: [number, number]; budget: number; human: HumanLimits }
 > = {
   easy: { size: [25, 45], target: 2, range: [1, 2], mechs: [0, 2], density: [0.2, 0.24], budget: 200, human: { maxAha: 0, deep: false } },
-  medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280, human: { maxAha: 2, deep: false } },
-  hard: { size: [60, 90], target: 7, range: [5, 10], mechs: [3, 5], density: [0.29, 0.32], budget: 240, human: { maxAha: 4, deep: false } },
-  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 150, human: { maxAha: 6, deep: true } },
+  medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280, human: { maxAha: 4, deep: false, maxRun: 3 } },
+  hard: { size: [60, 85], target: 8, range: [6, 10], mechs: [3, 5], density: [0.31, 0.34], budget: 190, human: { maxAha: 9, deep: false, maxRun: 4 } },
+  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 150, human: { maxAha: 12, deep: true, maxDeep: 6, maxRun: 4 } },
 };
 
 /** "Numbers and walls": what easy endless levels are made of unless mechanics are given. */
@@ -1415,6 +1450,6 @@ export function endlessLevel(seed: number | string, difficulty: EndlessDifficult
     },
     cfg.range[0],
     cfg.range[1],
-    difficulty === 'easy' ? 3 : difficulty === 'expert' ? 6 : 4,
+    difficulty === 'easy' ? 3 : difficulty === 'medium' ? 4 : 6,
   );
 }

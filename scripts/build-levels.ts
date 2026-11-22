@@ -136,6 +136,23 @@ const STRUCTURAL: MechanicId[] = ['fog', 'blank', 'walls', 'gaps'];
 const CLUE_MECHS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'swirl', 'island', 'chain', 'eye', 'parity'];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/** The last world rises with a saw-tooth to its finale (rated 10). */
+const FINALE_SAW = [6, 7, 7, 8, 7, 8, 8, 9, 8, 9, 9];
+
+/**
+ * Smooth curve inside a world: the regular levels (between the tutorials and the finale) are
+ * re-ordered so that their ratings follow the planned targets (lowest rating -> lowest target);
+ * ids follow the slots.
+ */
+function reorderWorld(levels: Level[], plans: GenOptions[], prefix: string): void {
+  const idx = levels.map((l, i) => (l.id.startsWith(prefix) && !l.teach && !plans.find((p) => p.id === l.id)?.maxTrivialRun ? i : -1)).filter((i) => i >= 0);
+  if (idx.length < 2) return;
+  const slots = idx.map((i) => ({ id: levels[i].id, target: plans.find((p) => p.id === levels[i].id)!.targetDifficulty, pos: i }));
+  const byTarget = [...slots].sort((a, b) => a.target - b.target || a.pos - b.pos);
+  const byDiff = idx.map((i) => levels[i]).sort((a, b) => (a.diff ?? 0) - (b.diff ?? 0));
+  const placed = byTarget.map((slot, k) => ({ slot, level: { ...byDiff[k], id: slot.id } }));
+  for (const { slot, level } of placed) levels[slot.pos] = level;
+}
 /** Mechanics that carry information from one island to another. */
 const CROSS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'eye', 'portal', 'zone', 'link'];
 
@@ -175,7 +192,7 @@ export function plan(): GenOptions[] {
           attempts: t.attempts,
           simple: w.n === 1,
           maxCols: w.n <= 3 ? 7 : 9,
-          human: { maxAha: w.n <= 3 ? 0 : 1, deep: false },
+          human: { maxAha: w.n <= 3 ? 0 : 2, deep: false, maxRun: 2 },
         });
         return;
       }
@@ -184,6 +201,7 @@ export function plan(): GenOptions[] {
       let size = Math.round(lerp(P.size[0], P.size[1], p) + (rng.next() * 2 - 1) * 6);
       let target = Math.round(lerp(P.target[0], P.target[1], p));
       if (!showcase && li % 4 === 3 && target > P.target[0]) target--; // breather
+      if (wi === W - 1 && !showcase) target = FINALE_SAW[Math.min(FINALE_SAW.length - 1, li - nTut)];
       if (showcase) {
         size = P.showcase + rng.int(6);
         target = P.target[1];
@@ -220,7 +238,14 @@ export function plan(): GenOptions[] {
         maxCols: w.n <= 3 ? 7 : showcase && w.n === WORLDS.length ? 11 : 9,
         maxTrivialRun: showcase ? 25 : undefined,
         // human solvability: steps beyond single clues / pairs / the counter alone
-        human: w.n <= 3 ? { maxAha: 0, deep: false } : w.n <= 8 ? { maxAha: 2, deep: false } : w.n < WORLDS.length ? { maxAha: 4, deep: false } : { maxAha: 10, deep: true },
+        human:
+          w.n <= 3
+            ? { maxAha: 0, deep: false }
+            : w.n <= 8
+              ? { maxAha: 4, deep: false, maxRun: 3 }
+              : w.n < WORLDS.length
+                ? { maxAha: 7, deep: false, maxRun: 3 }
+                : { maxAha: 14, deep: true, maxDeep: 4, maxRun: 3 },
         attempts: size <= 140 ? 8 : undefined,
         tolerance: target <= 6 ? 0 : 1,
       });
@@ -307,6 +332,7 @@ function main() {
   let teachFail = 0;
   for (const p of plans) {
     const t = Date.now();
+    if (p.maxTrivialRun) reorderWorld(levels, plans, p.id!.slice(0, 4));
     let level = generateLevel(p);
     // a world's finale must not be rated below the level before it
     const prev = levels[levels.length - 1];

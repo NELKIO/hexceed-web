@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ahaSteps, dailyLevel, endlessLevel, generateLevel, SHAPE_IDS, teachOK } from '../src/core/generator';
+import { ahaCells, ahaSteps, dailyLevel, endlessLevel, GEN_VERSION, generateLevel, hardRun, SHAPE_IDS, teachOK } from '../src/core/generator';
 import { buildBoard } from '../src/core/rules';
 import { solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level, MechanicId } from '../src/core/types';
@@ -133,7 +133,7 @@ describe('generator', () => {
   });
 
   it('endless enforces the rating of each mode; easy is numbers and walls', () => {
-    const range = { easy: [1, 2], medium: [3, 5], hard: [5, 10], expert: [7, 10] } as const;
+    const range = { easy: [1, 2], medium: [3, 5], hard: [5, 10], expert: [6, 10] } as const;
     for (const d of ['easy', 'medium', 'hard', 'expert'] as const)
       for (const seed of [1, 2]) {
         const L = endlessLevel(seed, d);
@@ -161,14 +161,16 @@ describe('generator', () => {
     const check = (L: ReturnType<typeof dailyLevel>, maxAha: number) => {
       const r = solveDetailed(L, { trace: true });
       const aha = ahaSteps(r);
-      expect(aha.length, L.id).toBeLessThanOrEqual(maxAha);
+      expect(ahaCells(r), L.id).toBeLessThanOrEqual(maxAha);
+      expect(hardRun(r), L.id).toBeLessThanOrEqual(3);
       for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, L.id).toBe(true);
       const b = buildBoard(L);
       const blanks = L.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
       expect(blanks.length).toBeLessThanOrEqual(Math.round(L.cells.filter((c) => !c.gem).length * 0.11) + 1);
       for (const i of blanks) expect(b.phases[0].adj[i].filter((j) => L.cells[j].clue?.k === 'blank').length).toBeLessThanOrEqual(1);
     };
-    for (const d of ['2026-11-22', '2026-11-23', '2026-11-24']) check(dailyLevel(d), 2);
+    for (const d of ['2026-11-22', '2026-11-23', '2026-11-24']) check(dailyLevel(d), 4);
+    expect(typeof GEN_VERSION).toBe('string');
     for (const s of [1, 2, 3]) check(endlessLevel(s, 'easy'), 0);
   });
 });

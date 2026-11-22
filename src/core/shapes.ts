@@ -121,8 +121,8 @@ export const SHAPES: ShapeDef[] = [
     multi: true,
     make: (rng) => {
       const rot = rng.chance(0.5) ? 0 : Math.PI;
-      // a tight triangle of pieces, or a column of three
-      const col = rng.chance(0.4);
+      // a tight triangle of pieces (no tall columns: phones are portrait but not that tall)
+      const col = false;
       const c = col
         ? [[0, -0.8], [0, 0], [0, 0.8]]
         : [0, 1, 2].map((k) => [0.62 * Math.cos(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3), 0.62 * Math.sin(rot - Math.PI / 2 + (k * 2 * Math.PI) / 3)]);
@@ -369,7 +369,7 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
 }
 
 /**
- * Pull separate pieces towards the biggest one until they are 1–2 empty hexes apart (rays and
+ * Pull separate pieces towards the biggest one until a single empty hex separates them (rays and
  * portals then still read as one board, without a big hole in the middle of the screen).
  */
 export function packIslands(coords: [number, number][]): [number, number][] {
@@ -391,7 +391,7 @@ export function packIslands(coords: [number, number][]): [number, number][] {
   };
   for (const comp of comps.slice(1)) {
     let cur = comp;
-    for (let step = 0; step < 60 && dist(placed, cur) > 3; step++) {
+    for (let step = 0; step < 60 && dist(placed, cur) > 2; step++) {
       // move one hex in the edge direction that points best at the main piece
       const [tx, ty] = centre(placed), [cx, cy] = centre(cur);
       let bestD = 0, bestDot = -Infinity;

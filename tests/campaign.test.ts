@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { act, activeConstraints, knownVals, newGame } from '../src/core/game';
-import { ahaCells, ahaSteps, deepCells, hardRun, teachOK } from '../src/core/generator';
+import { ahaCells, ahaSteps, deepCells, hardRun, longestTrivialRun, teachOK } from '../src/core/generator';
 import { buildBoard, cellConstraintsAll, portalTarget } from '../src/core/rules';
 import { nextDeduction, solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level } from '../src/core/types';
@@ -74,14 +74,18 @@ describe('campaign.json', () => {
     const of = (w: number) => WORLDS[w].levels.map((id) => levels.find((l) => l.id === id)!.diff ?? 0);
     const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
     expect(avg(of(0))).toBeLessThanOrEqual(1.5);
-    expect(avg(of(1))).toBeLessThanOrEqual(1.5);
+    expect(avg(of(1))).toBeLessThanOrEqual(2); // world 2: a few pair steps on top of the novice cascades
     const late = [9, 10, 11, 12].flatMap(of);
-    // human-solvability limits (few shallow aha cells, no long hard runs) cap the late worlds
-    expect(avg(late)).toBeGreaterThanOrEqual(4.5);
-    expect(late.filter((d) => d >= 6).length).toBeGreaterThanOrEqual(10);
+    expect(avg(late)).toBeGreaterThanOrEqual(5.3);
+    expect(late.filter((d) => d >= 6).length).toBeGreaterThanOrEqual(30);
     const finale = of(WORLDS.length - 1);
-    expect(avg(finale)).toBeGreaterThanOrEqual(7.5);
-    expect(finale.filter((d) => d >= 9).length).toBeGreaterThanOrEqual(2);
+    expect(avg(finale)).toBeGreaterThanOrEqual(8);
+    expect(finale.filter((d) => d >= 9).length).toBeGreaterThanOrEqual(3);
+    // world finales: hard steps spread through the solve (worlds 1–2 are pure number cascades)
+    for (const w of WORLDS.slice(2)) {
+      const l = levels.find((x) => x.id === w.levels[w.levels.length - 1])!;
+      expect(longestTrivialRun(solveDetailed(l, { trace: true })), l.id).toBeLessThanOrEqual(30);
+    }
     // smooth rise: never more than one point down from one level to the next
     for (let k = 1; k < finale.length; k++) expect(finale[k], `finale ${k}`).toBeGreaterThanOrEqual(finale[k - 1] - 1);
   });
@@ -97,6 +101,13 @@ describe('campaign.json', () => {
     expect(fog.teach).toEqual(['fog']);
     expect(fog.fog).not.toBe(false);
     expect(fog.cells.length).toBeLessThanOrEqual(16);
+    // «Тишина» is taught at w01-09; the levels before it are pure numbers
+    expect(levels.find((x) => x.id === 'w01-09')!.teach).toEqual(['blank']);
+    for (const id of WORLDS[0].levels) {
+      const l = levels.find((x) => x.id === id)!;
+      expect(l.cells.length, id).toBeLessThanOrEqual(37);
+      if (id < 'w01-09') expect(l.cells.some((c) => c.clue?.k === 'blank'), id).toBe(false);
+    }
   });
 
   // TODO(docs/NEXT.md): re-enable after the campaign is regenerated with the new size caps.

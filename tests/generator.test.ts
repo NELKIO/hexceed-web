@@ -133,7 +133,7 @@ describe('generator', () => {
   });
 
   it('endless enforces the rating of each mode; easy is numbers and walls', () => {
-    const range = { easy: [1, 2], medium: [3, 5], hard: [5, 10], expert: [6, 10] } as const;
+    const range = { easy: [1, 2], medium: [3, 5], hard: [6, 10], expert: [7, 10] } as const;
     for (const d of ['easy', 'medium', 'hard', 'expert'] as const)
       for (const seed of [1, 2]) {
         const L = endlessLevel(seed, d);

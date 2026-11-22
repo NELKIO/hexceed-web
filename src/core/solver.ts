@@ -1350,7 +1350,8 @@ export function rateDifficulty(n: number, tc: readonly number[]): number {
   const [, t2, t3, t4] = tc;
   // hard steps per "screen": a 250-hex board with three times the steps of a 70-hex one is longer, not harder
   // (three-clue / counter steps and contradiction chains weigh most: they are what stalls a player)
-  const hard = (t2 + 3.5 * t3 + 8 * t4) * Math.sqrt(70 / Math.max(70, n));
+  // pair steps are the fair, satisfying kind of difficulty: they count double
+  const hard = (2 * t2 + 3.5 * t3 + 8 * t4) * Math.sqrt(70 / Math.max(70, n));
   let d = 1 + 1.9 * Math.log(1 + hard / 1.6) + 0.45 * Math.log(1 + n / 40);
   if (t3 > 0) d += 0.4;
   if (t4 > 0) d += 0.8;

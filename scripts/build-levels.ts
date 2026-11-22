@@ -15,7 +15,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateLevel, teachOK, type GenOptions, type ShapeId } from '../src/core/generator';
+import { generateLevel, longestTrivialRun, teachOK, type GenOptions, type ShapeId } from '../src/core/generator';
 import { makeRng } from '../src/core/rng';
 import { solveDetailed } from '../src/core/solver';
 import type { Level, MechanicId } from '../src/core/types';
@@ -56,18 +56,17 @@ const PARAMS: WorldParams[] = [
       { teach: ['fog'], size: 14, target: 1, counter: false },
       { teach: ['counter'], size: 16, target: 2, fog: false, attempts: 30 },
     ],
-    size: [20, 36],
+    size: [20, 32],
     target: [1, 2],
-    showcase: 38,
+    showcase: 31,
   },
   // 2 Walls & islands
-  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 26, target: 2 }], size: [28, 50], target: [1, 2], showcase: 52 },
+  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 26, target: 2 }], size: [28, 50], target: [2, 3], showcase: 52 },
   // 3 Rays
   {
     tutorials: [
       { teach: ['line'], with: ['line'], size: 18, target: 2 },
       { teach: ['multiline'], with: ['line', 'multiline'], size: 22, target: 2 },
-      { teach: ['blank'], with: ['line', 'blank'], size: 28, target: 3 },
     ],
     size: [36, 66],
     target: [2, 4],
@@ -107,7 +106,7 @@ const PARAMS: WorldParams[] = [
       { teach: ['portal'], with: ['portal', 'gaps', 'line', 'blank'], size: 30, target: 3, islands: true },
     ],
     size: [52, 100],
-    target: [5, 6],
+    target: [6, 7],
     showcase: 106,
   },
   // 10 Island & chain
@@ -117,17 +116,17 @@ const PARAMS: WorldParams[] = [
       { teach: ['chain'], with: ['chain', 'blank'], size: 26, target: 3 },
     ],
     size: [55, 100],
-    target: [5, 7],
+    target: [6, 8],
     showcase: 106,
   },
   // 11 Together & apart
-  { tutorials: [{ teach: ['together'], with: ['together', 'blank'], size: 22, target: 2 }, { teach: ['apart'], with: ['apart', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 7], showcase: 108 },
+  { tutorials: [{ teach: ['together'], with: ['together', 'blank'], size: 22, target: 2 }, { teach: ['apart'], with: ['apart', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 8], showcase: 108 },
   // 12 Eye & parity
-  { tutorials: [{ teach: ['eye'], with: ['eye', 'blank'], size: 24, target: 3 }, { teach: ['parity'], with: ['parity', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 8], showcase: 108 },
+  { tutorials: [{ teach: ['eye'], with: ['eye', 'blank'], size: 24, target: 3 }, { teach: ['parity'], with: ['parity', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [7, 8], showcase: 108 },
   // 13 Threads & zones
-  { tutorials: [{ teach: ['link'], with: ['link', 'blank'], size: 22, target: 2 }, { teach: ['zone'], with: ['zone', 'blank'], size: 24, target: 3 }], size: [60, 110], target: [7, 8], showcase: 108 },
+  { tutorials: [{ teach: ['link'], with: ['link', 'blank'], size: 22, target: 2 }, { teach: ['zone'], with: ['zone', 'blank'], size: 24, target: 3 }], size: [60, 110], target: [7, 9], showcase: 108 },
   // 14 Finale
-  { tutorials: [], size: [70, 110], target: [8, 10], showcase: 150 },
+  { tutorials: [], size: [70, 110], target: [8, 10], showcase: 158 },
 ];
 
 const SHOWCASE: ShapeId[] = ['flower', 'islands2', 'star', 'heart', 'glyph', 'ring', 'flower', 'hexagon', 'islands3', 'glyph', 'heart', 'star', 'blob', 'flower'];
@@ -137,7 +136,7 @@ const CLUE_MECHS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'tr
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** The last world rises with a saw-tooth to its finale (rated 10). */
-const FINALE_SAW = [6, 7, 7, 8, 7, 8, 8, 9, 8, 9, 9];
+const FINALE_SAW = [7, 7, 8, 8, 8, 9, 8, 9, 9, 10, 9];
 
 /**
  * Smooth curve inside a world: the regular levels (between the tutorials and the finale) are
@@ -145,7 +144,7 @@ const FINALE_SAW = [6, 7, 7, 8, 7, 8, 8, 9, 8, 9, 9];
  * ids follow the slots.
  */
 function reorderWorld(levels: Level[], plans: GenOptions[], prefix: string): void {
-  const idx = levels.map((l, i) => (l.id.startsWith(prefix) && !l.teach && !plans.find((p) => p.id === l.id)?.maxTrivialRun ? i : -1)).filter((i) => i >= 0);
+  const idx = levels.map((l, i) => (l.id.startsWith(prefix) && !l.teach && !isFinale(l.id) ? i : -1)).filter((i) => i >= 0);
   if (idx.length < 2) return;
   const slots = idx.map((i) => ({ id: levels[i].id, target: plans.find((p) => p.id === levels[i].id)!.targetDifficulty, pos: i }));
   const byTarget = [...slots].sort((a, b) => a.target - b.target || a.pos - b.pos);
@@ -153,6 +152,7 @@ function reorderWorld(levels: Level[], plans: GenOptions[], prefix: string): voi
   const placed = byTarget.map((slot, k) => ({ slot, level: { ...byDiff[k], id: slot.id } }));
   for (const { slot, level } of placed) levels[slot.pos] = level;
 }
+const isFinale = (id: string) => id.endsWith('-12');
 /** Mechanics that carry information from one island to another. */
 const CROSS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'eye', 'portal', 'zone', 'link'];
 
@@ -168,6 +168,14 @@ export function plan(): GenOptions[] {
     w.levels.forEach((id, li) => {
       const rng = makeRng(`plan:${id}`);
       const seed = `campaign:${id}`;
+      if (w.n === 1 && li === 8) {
+        // «Тишина» is introduced on a tiny board
+        out.push({
+          seed, id, size: 20, mechanics: ['basic', 'counter', 'fog', 'blank'], targetDifficulty: 2, teach: ['blank'],
+          density: 0.24, simple: true, maxCols: 7, human: { maxAha: 0, deep: false }, islands: false, maxBlankShare: 0.2,
+        });
+        return;
+      }
       if (li < nTut) {
         const t = P.tutorials[li];
         const mechanics: MechanicId[] = [
@@ -214,6 +222,7 @@ export function plan(): GenOptions[] {
         if (m === 'blank' || rng.chance(STRUCTURAL.includes(m) ? Math.max(0.8, keepOld) : keepOld)) mech.add(m);
       }
       if (w.n >= 2) mech.add('fog');
+      if (w.n === 1 && li < 8) mech.delete('blank'); // the first levels stay pure numbers
       if (mech.has('multiline')) mech.add('line');
       if (mech.has('portal')) mech.add('gaps');
       const weights: Partial<Record<MechanicId, number>> = {};
@@ -236,7 +245,9 @@ export function plan(): GenOptions[] {
         fog: true,
         simple: w.n === 1,
         maxCols: w.n <= 3 ? 7 : showcase && w.n === WORLDS.length ? 11 : 9,
-        maxTrivialRun: showcase ? 25 : undefined,
+        // bottlenecks: a pair (or shallow) step at least every ~25 easy cells; pairs from w01-10 on
+        maxTrivialRun: w.n === 1 ? (li >= 9 ? 14 : undefined) : w.n === 2 ? 18 : showcase ? 22 : 25,
+        maxBlankShare: w.n <= 2 ? 0.08 : undefined,
         // human solvability: steps beyond single clues / pairs / the counter alone
         human:
           w.n <= 3
@@ -246,7 +257,8 @@ export function plan(): GenOptions[] {
               : w.n < WORLDS.length
                 ? { maxAha: 7, deep: false, maxRun: 3 }
                 : { maxAha: 14, deep: true, maxDeep: 4, maxRun: 3 },
-        attempts: size <= 140 ? 8 : undefined,
+        attempts: showcase ? 14 : size <= 140 ? 8 : undefined,
+        budget: showcase ? 8000 : 3000,
         tolerance: target <= 6 ? 0 : 1,
       });
     });
@@ -332,15 +344,18 @@ function main() {
   let teachFail = 0;
   for (const p of plans) {
     const t = Date.now();
-    if (p.maxTrivialRun) reorderWorld(levels, plans, p.id!.slice(0, 4));
+    if (isFinale(p.id!)) reorderWorld(levels, plans, p.id!.slice(0, 4));
     let level = generateLevel(p);
-    // a world's finale must not be rated below the level before it
+    // a world's finale: rated at least as the level before it, hard steps spread through the solve
     const prev = levels[levels.length - 1];
-    if (p.maxTrivialRun && prev && prev.id.slice(0, 3) === p.id!.slice(0, 3))
-      for (let k = 1; k <= 3 && (level.diff ?? 0) < (prev.diff ?? 0); k++) {
+    if (isFinale(p.id!) && prev && prev.id.slice(0, 3) === p.id!.slice(0, 3)) {
+      const badness = (l: Level) =>
+        Math.max(0, (prev.diff ?? 0) - (l.diff ?? 0)) * 10 + Math.max(0, longestTrivialRun(solveDetailed(l, { trace: true })) - 25);
+      for (let k = 1; k <= 5 && badness(level) > 0; k++) {
         const alt = generateLevel({ ...p, seed: `${p.seed}#${k}` });
-        if ((alt.diff ?? 0) > (level.diff ?? 0)) level = { ...alt, id: p.id! };
+        if (badness(alt) < badness(level)) level = { ...alt, id: p.id! };
       }
+    }
     const rep = solveDetailed(level, { trace: true });
     if (!rep.solved) throw new Error(`${p.id} is not solvable`);
     const ms = Date.now() - t;

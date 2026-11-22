@@ -72,8 +72,14 @@ export interface GenOptions {
   maxCols?: number;
   /** Plain convex outlines only (first levels). */
   simple?: boolean;
-  /** Longest allowed run of cells cleared by easy steps between two harder steps (penalised above). */
+  /**
+   * Bottlenecks: longest wanted run of cells cleared by easy (single-clue) steps between two harder
+   * steps. A pass after the minimisation weakens information inside longer runs so the frontier
+   * there can only advance by a pair step (preferred) or a shallow three-clue step.
+   */
   maxTrivialRun?: number;
+  /** Share of safe cells that may be «Тишина» (default 0.11, 0.06 on easy targets). */
+  maxBlankShare?: number;
   /**
    * Human solvability: at most `maxAha` steps that need more than a single clue, a pair of clues or
    * the counter alone; with `deep: false` each of them is a tier-3 step over at most 3 clues (no
@@ -86,7 +92,7 @@ export interface GenOptions {
  * Version of the generation output: bump whenever the same seed would produce a different level
  * (the UI keys cached daily / endless levels by it).
  */
-export const GEN_VERSION = '5.0';
+export const GEN_VERSION = '6.0';
 
 export interface HumanLimits {
   /** Hard cells: moves that need more than one clue, a pair of clues or the counter alone. */
@@ -725,7 +731,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     }
   for (const m of ['together', 'apart'] as const) {
     if (!mech.has(m)) continue;
-    const cnt = cx.teach.has(m) ? NT : (opts.feature ?? []).includes(m) ? 1 : 0;
+    const cnt = cx.teach.has(m) ? NT : (opts.feature ?? []).includes(m) ? 4 : 0;
     let have = cells.filter((c) => c.clue?.mod === m).length;
     for (const i of rng.shuffle(safe())) {
       if (have >= cnt) break;
@@ -1081,7 +1087,10 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   // --- minimisation: remove information while the rating stays within the target
   const safeNow = safe();
   // «Тишина» stays rare and scattered: at most ~11% of the safe cells, never in clusters
-  const maxBlanks = Math.round(safeNow.length * (isTeach ? 0.3 : T <= 2 ? 0.06 : 0.11));
+  // (the bottleneck pass below may use the rest of the share)
+  const blankShare = opts.maxBlankShare ?? (isTeach ? 0.3 : T <= 2 ? 0.06 : 0.11);
+  const maxBlanksTotal = Math.round(safeNow.length * blankShare);
+  const maxBlanks = opts.maxTrivialRun ? Math.round(maxBlanksTotal * 0.6) : maxBlanksTotal;
   const isBlank = (j: number) => cells[j].clue?.k === 'blank';
   const blankNbs = (j: number) => bNow.phases[0].adj[j].filter(isBlank);
   let blanks = cells.filter((c) => c.clue?.k === 'blank').length;
@@ -1196,7 +1205,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   for (const it of order) {
     const cap = teachDone ? T + slack : T + slack + 1;
     if (it.tags.some((t) => cx.teach.has(t))) continue;
-    if (it.tags.some((t) => feature.has(t) && mechanicCount(level, t) <= 1)) continue;
+    if (it.tags.some((t) => feature.has(t) && mechanicCount(level, t) <= (t === 'together' || t === 'apart' ? 3 : 1))) continue;
     if (it.blank && blanks >= maxBlanks) continue;
     const free = it.free?.() ?? false;
     if (!free && (solves >= maxSolves || spent())) continue;
@@ -1214,6 +1223,103 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
       if (it.blank) blanks++;
       if (!teachDone && r.difficulty <= T + slack) teachDone = teachSatisfied(level, teach, r, mech, maxTier);
     } else undo();
+  }
+  // bottlenecks: split long runs of easy moves by weakening a clue inside them (pairs preferred)
+  if (opts.maxTrivialRun && !isTeach) {
+    let cur = solve(level, { ...sOpts, trace: true });
+    if (cur.solved) {
+      rep = cur;
+      const L = opts.maxTrivialRun;
+      const bnow = buildBoard(level);
+      const quality = (r: DetailedReport) => -Math.max(0, longestTrivialRun(r) - L) * 10 + r.tierCounts[1] * 2 + r.tierCounts[2];
+      let misses = 0;
+      for (let round = 0; round < (L <= 22 ? 28 : 16) && longestTrivialRun(rep) > L && !spent(); round++) {
+        // candidate clues: those used by the easy steps inside over-long runs (middle part first)
+        const runs: number[][] = [];
+        let curRun: { cells: number; clues: number[] } = { cells: 0, clues: [] };
+        const flush = () => {
+          if (curRun.cells > L) {
+            const m = curRun.clues.length;
+            runs.push([...curRun.clues.slice(Math.floor(m * 0.3), Math.ceil(m * 0.8)), ...curRun.clues]);
+          }
+          curRun = { cells: 0, clues: [] };
+        };
+        for (const e of rep.events) {
+          if (e.tier >= 2) {
+            flush();
+            continue;
+          }
+          curRun.cells += e.cells.length;
+          for (const c of e.reasons) if (c.src.type === 'cell') curRun.clues.push(c.src.cell);
+        }
+        flush();
+        const seen = new Set<number>();
+        const cand: number[] = [];
+        for (const r of runs) for (const i of r) if (!seen.has(i)) (seen.add(i), cand.push(i));
+        const ok = (i: number) => !cells[i].gem && !cells[i].start && !isProtected(i) && cells[i].clue?.k !== 'blank' && !cells[i].extra && !cells[i].alt;
+        const pool = cand.filter(ok);
+        // middle of the runs first, a little randomness
+        const head = rng.shuffle(pool.slice(0, 10)), tail = rng.shuffle(pool.slice(10));
+        let done = false;
+        let tries = 0;
+        for (const i of [...head, ...tail]) {
+          if (tries >= 14 || spent()) break;
+          for (const how of ['blank', 'gem'] as const) {
+            const blanksNow = cells.filter((c) => c.clue?.k === 'blank').length;
+            const nb = bnow.phases[0].adj[i].filter((j) => cells[j].clue?.k === 'blank');
+            if (how === 'blank' && !(mech.has('blank') && blanksNow < maxBlanksTotal && nb.length <= 1 && nb.every((j) => bnow.phases[0].adj[j].filter((k) => cells[k].clue?.k === 'blank').length === 0))) continue;
+            if (how === 'gem' && cells.filter((c) => c.gem).length >= Math.round((density + 0.04) * n)) continue;
+            tries++;
+            const snapshot = JSON.stringify(level);
+            if (how === 'blank') cells[i].clue = { k: 'blank' };
+            else {
+              // turn the cell into a crystal: changes the numbers around it
+              cells[i].gem = true;
+              delete cells[i].clue;
+              delete cells[i].lock;
+              sanitize(level);
+            }
+            let r = solve(level, { ...sOpts, trace: true });
+            const good = (x: DetailedReport) => x.solved && okH(x) && x.difficulty <= T + slack + 1 && quality(x) > quality(rep!);
+            if (!r.solved && r.stuckAt) {
+              // stuck right there: a small change of the crystals at the stuck frontier often turns
+              // the gap into a pair step
+              const vals = r.stuckAt;
+              const front = rng.shuffle(
+                cells.map((_, j) => j).filter((j) => vals[j] === -1 && !isProtected(j) && !cells[j].lock && bnow.phases[0].adj[j].some((k) => vals[k] !== -1)),
+              );
+              for (const f of front.slice(0, 8)) {
+                const snap2 = JSON.stringify(level);
+                cells[f].gem = !cells[f].gem;
+                if (!cells[f].gem && cells[f].clue && !['num', 'radius', 'ring'].includes(cells[f].clue!.k)) delete cells[f].clue;
+                sanitize(level);
+                const r2 = solve(level, { ...sOpts, trace: true });
+                if (good(r2)) {
+                  r = r2;
+                  break;
+                }
+                const b2 = JSON.parse(snap2) as Level;
+                cells.splice(0, n, ...b2.cells);
+                level.links = b2.links;
+                level.zones = b2.zones;
+              }
+            }
+            if (good(r)) {
+              rep = r;
+              done = true;
+              break;
+            }
+            const back = JSON.parse(snapshot) as Level;
+            cells.splice(0, n, ...back.cells);
+            level.links = back.links;
+            level.zones = back.zones;
+          }
+          if (done) break;
+        }
+        if (!done && ++misses >= 3) break;
+      }
+      computeUsed(rep);
+    }
   }
   // hardening (hard targets still below the target): turn safe number cells into crystals when
   // that makes the solution need more hard steps (bottlenecks), up to a few points of density
@@ -1262,12 +1368,12 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   let penalty = 0;
   if (!okH(rep)) penalty += 10; // a person would get stuck somewhere
   if (T >= 4) penalty += Math.max(0, openingShare(rep, n) - 0.5) * 4;
-  if (opts.maxTrivialRun) penalty += Math.max(0, longestTrivialRun(rep) - opts.maxTrivialRun) / 8;
+  if (opts.maxTrivialRun) penalty += Math.max(0, longestTrivialRun(rep) - opts.maxTrivialRun - 3) / (opts.maxTrivialRun <= 22 ? 3 : 8);
   penalty += Math.max(0, cells.filter((c) => c.start).length - nStarts) * 1.5; // extra starts are a last resort
   for (const m of opts.feature ?? []) {
     if (!mech.has(m) || STRUCTURAL.includes(m) || mechanicCount(level, m) === 0 || spent()) continue;
     const without = solve(level, { ...sOpts, exclude: m });
-    if (without.solved && hardSteps(without) <= hardSteps(rep)) penalty += 0.75; // the mechanic is not needed
+    if (without.solved && hardSteps(without) <= hardSteps(rep)) penalty += 1.5; // the mechanic is not needed
   }
   if (isTeach && !STRUCTURAL.includes(teach[0])) {
     const bt = buildBoard(level);
@@ -1398,6 +1504,7 @@ export function dailyLevel(dateISO: string, mechanics?: MechanicId[]): Level {
         budget: 160,
         maxCols: 9,
         human: { maxAha: 4, deep: false, maxRun: 3 },
+        maxTrivialRun: 30,
       };
     },
     4,
@@ -1414,8 +1521,8 @@ const ENDLESS: Record<
 > = {
   easy: { size: [25, 45], target: 2, range: [1, 2], mechs: [0, 2], density: [0.2, 0.24], budget: 200, human: { maxAha: 0, deep: false } },
   medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280, human: { maxAha: 4, deep: false, maxRun: 3 } },
-  hard: { size: [60, 85], target: 8, range: [6, 10], mechs: [3, 5], density: [0.31, 0.34], budget: 190, human: { maxAha: 9, deep: false, maxRun: 4 } },
-  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 150, human: { maxAha: 12, deep: true, maxDeep: 6, maxRun: 4 } },
+  hard: { size: [60, 85], target: 8, range: [6, 10], mechs: [3, 5], density: [0.31, 0.34], budget: 260, human: { maxAha: 9, deep: false, maxRun: 4 } },
+  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 170, human: { maxAha: 12, deep: true, maxDeep: 6, maxRun: 4 } },
 };
 
 /** "Numbers and walls": what easy endless levels are made of unless mechanics are given. */
@@ -1446,10 +1553,11 @@ export function endlessLevel(seed: number | string, difficulty: EndlessDifficult
         budget: cfg.budget,
         maxCols: 9,
         human: cfg.human,
+        maxTrivialRun: difficulty === 'easy' ? undefined : difficulty === 'medium' ? 30 : 25,
       };
     },
     cfg.range[0],
     cfg.range[1],
-    difficulty === 'easy' ? 3 : difficulty === 'medium' ? 4 : 6,
+    difficulty === 'easy' ? 3 : difficulty === 'medium' ? 4 : difficulty === 'hard' ? 8 : 8,
   );
 }

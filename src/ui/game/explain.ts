@@ -80,17 +80,23 @@ function baseName(g: Game, c: Constraint): string {
   }
 }
 
+/** " (shown after a rotation)" when the constraint belongs to a phase that is not on screen, else ''. */
+function phaseNoteOf(g: Game, c: Constraint): string {
+  const ph = srcPhase(c);
+  const period = (g.board as unknown as { period?: number }).period ?? 1;
+  return ph !== undefined && period > 1 && ph % period !== (g.phase ?? 0) % period ? t('phaseNote') : '';
+}
+
 /** Name of the clue behind a constraint (+ "shown after a rotation" when it is another phase). */
 export function sourceName(g: Game, c: Constraint, cs: Case = 'nom'): string {
   const name = cs === 'acc' ? accRu(baseName(g, c)) : baseName(g, c);
-  const ph = srcPhase(c);
-  const period = (g.board as unknown as { period?: number }).period ?? 1;
-  if (ph !== undefined && period > 1 && ph % period !== (g.phase ?? 0) % period) return name + t('phaseNote');
-  return name;
+  return name + phaseNoteOf(g, c);
 }
 
-/** Which words describe the clue's area: neighbours, a ray, or anything else. */
-function areaOf(g: Game, c: Constraint): 'num' | 'line' | 'other' {
+/** Which words describe the clue's area: neighbours, a ray, a zone, or anything else. */
+function areaOf(g: Game, c: Constraint): 'num' | 'line' | 'zone' | 'other' {
+  if (c.src.type === 'zone') return 'zone';
+  if (c.src.type !== 'cell') return 'other';
   const clue = clueOf(g, c);
   if (!clue || clue.k === 'num') return 'num';
   if (clue.k === 'line') return 'line';
@@ -103,15 +109,31 @@ function joinList(names: string[]): string {
   return names.slice(0, -1).join(', ') + and + names[names.length - 1];
 }
 
+/**
+ * Every clue counts: equal names are grouped as "Число 1 ×2" (first-seen order), never silently
+ * merged; more than five groups end in "…и ещё N".
+ */
+function groupNames(list: string[]): string {
+  const counts = new Map<string, number>();
+  for (const n of list) counts.set(n, (counts.get(n) ?? 0) + 1);
+  const names = [...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
+  const shown = names.length > 5 ? [...names.slice(0, 4), t('h_more', { n: names.length - 4 })] : names;
+  return joinList(shown);
+}
+
 export function explain(g: Game, d: Deduction, vals: Int8Array): string {
   const cell = t(d.gem ? 'hintGem' : 'hintSafe');
   const other = t(d.gem ? 'hintSafe' : 'hintGem');
   const reasons = d.reasons.length ? d.reasons : [];
   // a contradiction chain: name every clue involved, the last one is the one that breaks
   if (d.tier >= 4 && reasons.length) {
-    const names = [...new Set(reasons.map((c) => sourceName(g, c)))].slice(0, 4);
-    if (names.length === 1) return t('h_tryContra', { other, a: names[0], cell });
-    return t('h_tryChain', { other, list: joinList(names.slice(0, -1)), last: names[names.length - 1], cell });
+    const last = sourceName(g, reasons[reasons.length - 1]);
+    const rest = reasons.slice(0, -1).map((c) => sourceName(g, c));
+    if (!rest.length) return t('h_tryContra', { other, a: last, cell });
+    const list = groupNames(rest);
+    // one clue «требует», several (or one ×2) «требуют»
+    const one = rest.length === 1;
+    return t(one ? 'h_tryChain1' : 'h_tryChain', { other, list, last, cell });
   }
   if (reasons.length === 1) {
     const c = reasons[0];
@@ -137,12 +159,12 @@ export function explain(g: Game, d: Deduction, vals: Int8Array): string {
       }
       if (c.mod?.type === 'together') return t(d.gem ? 'h_togetherGem' : 'h_togetherSafe', { src });
       if (c.mod?.type === 'apart') return t(d.gem ? 'h_apartGem' : 'h_apartSafe', { src });
-      return t('h_generic', { src, cell });
+      return t('h_generic', { src: baseName(g, c), note: phaseNoteOf(g, c), cell });
     }
     if (c.kind === 'eye') return t('h_eye', { src, v: c.value, cellsWord: plural(c.value, 'cells1', 'cells2', 'cells5'), cell });
     if (c.kind === 'parity') return t('h_parity', { src, cell });
     if (c.kind === 'link') return t(c.value ? 'h_linkSame' : 'h_linkDiff', { cell });
-    return t('h_generic', { src, cell });
+    return t('h_generic', { src: baseName(g, c), note: phaseNoteOf(g, c), cell });
   }
   // the counter with one area clue: how many lights are left inside the area and outside it
   const glob = reasons.find((c) => c.src.type === 'global' && c.kind === 'sum');
@@ -153,17 +175,12 @@ export function explain(g: Game, d: Deduction, vals: Int8Array): string {
     if (total >= inside && inside >= 0)
       return t('h_counterArea', { total, gemsWord: plural(total, 'gems1', 'gems2', 'gems5'), src: sourceName(g, areas[0]), inside, outside: total - inside, cell });
   }
-  if (reasons.length === 2) return t('h_pair', { a: sourceName(g, reasons[0], 'acc'), b: sourceName(g, reasons[1], 'acc'), cell });
-  if (reasons.length > 2) {
-    // every clue counts: equal names are grouped as "Число 1 ×2", never silently merged
-    const counts = new Map<string, number>();
-    for (const c of reasons) {
-      const n = sourceName(g, c, 'acc');
-      counts.set(n, (counts.get(n) ?? 0) + 1);
-    }
-    const names = [...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
-    const shown = names.length > 5 ? [...names.slice(0, 4), t('h_more', { n: names.length - 4 })] : names;
-    return t('h_many', { list: joinList(shown), cell });
+  if (reasons.length === 2) {
+    const a = sourceName(g, reasons[0], 'acc'), b = sourceName(g, reasons[1], 'acc');
+    // two different clues that read the same: say "both", not "Число 1 и Число 1"
+    if (a === b) return t('h_pairSame', { a: sourceName(g, reasons[0]), cell });
+    return t('h_pair', { a, b, cell });
   }
-  return t('h_generic', { src: t('src_global'), cell });
+  if (reasons.length > 2) return t('h_many', { list: groupNames(reasons.map((c) => sourceName(g, c, 'acc'))), cell });
+  return t('h_generic', { src: t('src_global'), note: '', cell });
 }

@@ -1,5 +1,6 @@
 // Builds the campaign: src/levels/campaign.json (compact JSON array of levels).
-// Run: npx vite-node scripts/build-levels.ts [--only=w03] [--dry]
+// Run: npx vite-node scripts/build-levels.ts [--only=w03] [--dry] [--parallel]
+//   --parallel: one child process per world (all cores), results merged in world order.
 // Deterministic: every level is generated from a seed derived from its id.
 //
 // Calibration (reference study of the genre, see docs/MECHANICS.md): one start hex (2–3 only on the
@@ -9,7 +10,9 @@
 // 10–40 hexes with ~3 special cells, regular levels 40–110, one showcase per world 60–180, the
 // finale's last level ~180 (UX review: boards must fit a portrait phone). Difficulty rises via density and mixing, not size.
 
-import { writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateLevel, teachOK, type GenOptions, type ShapeId } from '../src/core/generator';
@@ -172,6 +175,7 @@ export function plan(): GenOptions[] {
           attempts: t.attempts,
           simple: w.n === 1,
           maxCols: w.n <= 3 ? 7 : 9,
+          human: { maxAha: w.n <= 3 ? 0 : 1, deep: false },
         });
         return;
       }
@@ -215,6 +219,8 @@ export function plan(): GenOptions[] {
         simple: w.n === 1,
         maxCols: w.n <= 3 ? 7 : showcase && w.n === WORLDS.length ? 11 : 9,
         maxTrivialRun: showcase ? 25 : undefined,
+        // human solvability: steps beyond single clues / pairs / the counter alone
+        human: w.n <= 3 ? { maxAha: 0, deep: false } : w.n <= 8 ? { maxAha: 2, deep: false } : w.n < WORLDS.length ? { maxAha: 4, deep: false } : { maxAha: 10, deep: true },
         attempts: size <= 140 ? 8 : undefined,
         tolerance: target <= 6 ? 0 : 1,
       });
@@ -248,10 +254,52 @@ function islandsOf(hexes: [number, number][]): number {
   return k;
 }
 
+async function parallel(dry: boolean) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const dir = resolve(tmpdir(), `hexlume-build-${process.pid}`);
+  mkdirSync(dir, { recursive: true });
+  const t0 = Date.now();
+  const logs: string[] = [];
+  await Promise.all(
+    WORLDS.map(
+      (w) =>
+        new Promise<void>((done, fail) => {
+          const id = `w${String(w.n).padStart(2, '0')}`;
+          const child = spawn('npx', ['vite-node', resolve(here, 'build-levels.ts'), `--only=${id}`, `--out=${resolve(dir, id + '.json')}`], {
+            cwd: resolve(here, '..'),
+            stdio: ['ignore', 'pipe', 'inherit'],
+          });
+          let out = '';
+          child.stdout.on('data', (d) => (out += d));
+          child.on('exit', (code) => {
+            logs[w.n - 1] = out;
+            code === 0 ? done() : fail(new Error(`${id} failed`));
+          });
+        }),
+    ),
+  );
+  for (const l of logs) process.stdout.write(l.split('\n').filter((x) => /^\s+\d+\s+\d+/.test(x)).join('\n') + '\n');
+  const levels = WORLDS.flatMap((w) => JSON.parse(readFileSync(resolve(dir, `w${String(w.n).padStart(2, '0')}.json`), 'utf8')) as Level[]);
+  rmSync(dir, { recursive: true, force: true });
+  console.log(`${levels.length} levels in ${((Date.now() - t0) / 1000).toFixed(1)} s (parallel)`);
+  if (dry) return;
+  const file = resolve(here, '../src/levels/campaign.json');
+  writeFileSync(file, JSON.stringify(levels));
+  console.log(`wrote ${file}`);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const only = args.find((a) => a.startsWith('--only='))?.slice(7);
+  const outFile = args.find((a) => a.startsWith('--out='))?.slice(6);
   const dry = args.includes('--dry');
+  if (args.includes('--parallel')) {
+    parallel(dry).catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+    return;
+  }
   const plans = plan().filter((p) => !only || p.id!.startsWith(only));
   const levels: Level[] = [];
   const t0 = Date.now();
@@ -293,6 +341,10 @@ function main() {
     );
   }
   console.log(`${levels.length} levels in ${((Date.now() - t0) / 1000).toFixed(1)} s, teach levels where the mechanic is not strictly needed: ${teachFail}`);
+  if (outFile) {
+    writeFileSync(outFile, JSON.stringify(levels));
+    return;
+  }
   if (dry || only) return;
   const here = dirname(fileURLToPath(import.meta.url));
   const file = resolve(here, '../src/levels/campaign.json');

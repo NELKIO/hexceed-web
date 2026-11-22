@@ -620,11 +620,13 @@ class Ctx {
       if (!best) return f;
       if (!bestF || f.cost < bestF.cost) bestF = f;
     }
-    if (!bestF) {
-      const u = this.usable(this.singleGlobal().forced);
-      if (u.length) bestF = { tier: 1, members: [G], forced: u, cost: this.n };
-    }
     return bestF;
+  }
+
+  /** The counter alone ("no crystals left" / "all the rest are crystals"): tried after pairs. */
+  globalAlone(): Found | null {
+    const u = this.usable(this.singleGlobal().forced);
+    return u.length ? { tier: 1, members: [G], forced: u, cost: this.n } : null;
   }
 
   clean2 = 0;
@@ -1203,8 +1205,9 @@ export function nextDeduction(board: Board, vals: Int8Array, cons: Constraint[],
     }
     ctx.vis = vis;
   }
-  for (const t of [1, 2, 3, 4] as Tier[]) {
-    const f = ctx.find(t, true);
+  // order a person would use: single clues, pairs, then the counter alone, then harder reasoning
+  for (const step of [1, 2, 0, 3, 4]) {
+    const f = step === 0 ? ctx.globalAlone() : ctx.find(step as Tier, true);
     if (!f) continue;
     let cell = f.forced[0];
     for (const e of f.forced) if (e >> 1 < cell >> 1) cell = e;
@@ -1316,18 +1319,13 @@ export function solveDetailed(level: Level, opts: SolveOptions = {}): DetailedRe
           pass = progress = true;
         }
       }
-      if (!pass) {
-        const u = ctx.usable(ctx.singleGlobal().forced);
-        if (u.length) {
-          apply({ tier: 1, members: [G], forced: u });
-          pass = progress = true;
-        }
-      }
     }
     if (ctx.U === 0 || contradiction) break;
     if (progress) continue;
-    let found: Found | null = null;
-    for (let t = 2; t <= maxTier && !found; t++) found = ctx.find(t as Tier, false);
+    // pairs first, then the counter alone, then harder reasoning
+    let found: Found | null = maxTier >= 2 ? ctx.find(2, false) : null;
+    found ??= ctx.globalAlone();
+    for (let t = 3; t <= maxTier && !found; t++) found = ctx.find(t as Tier, false);
     if (!found) break;
     apply(found);
   }

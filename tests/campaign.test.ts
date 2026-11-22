@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, activeConstraints, knownVals, newGame } from '../src/core/game';
-import { teachOK } from '../src/core/generator';
-import { buildBoard, portalTarget } from '../src/core/rules';
+import { ahaSteps, teachOK } from '../src/core/generator';
+import { buildBoard, cellConstraintsAll, portalTarget } from '../src/core/rules';
 import { nextDeduction, solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level } from '../src/core/types';
 import campaign from '../src/levels/campaign.json';
@@ -76,7 +76,7 @@ describe('campaign.json', () => {
     expect(avg(of(0))).toBeLessThanOrEqual(1.5);
     expect(avg(of(1))).toBeLessThanOrEqual(1.5);
     const late = [9, 10, 11, 12].flatMap(of);
-    expect(avg(late)).toBeGreaterThanOrEqual(5.5);
+    expect(avg(late)).toBeGreaterThanOrEqual(5); // human-solvability limits (≤ 4 shallow aha steps) cap late worlds a little lower
     expect(late.filter((d) => d >= 7).length).toBeGreaterThanOrEqual(4);
     const finale = of(WORLDS.length - 1);
     expect(avg(finale)).toBeGreaterThanOrEqual(8);
@@ -97,7 +97,7 @@ describe('campaign.json', () => {
   });
 
   // TODO(docs/NEXT.md): re-enable after the campaign is regenerated with the new size caps.
-  it.skip('follows the calibration: one start, fog, sizes', () => {
+  it('follows the calibration: one start, fog, sizes', () => {
     levels.forEach((l, i) => {
       const starts = l.cells.filter((c) => c.start).length;
       if (i === 0) expect(starts, l.id).toBeLessThanOrEqual(3);
@@ -107,7 +107,8 @@ describe('campaign.json', () => {
       expect(l.cells.length, l.id).toBeLessThanOrEqual(190);
     });
     const last = levels[levels.length - 1];
-    expect(last.cells.length).toBeGreaterThanOrEqual(150);
+    expect(last.cells.length).toBeGreaterThanOrEqual(120);
+    expect(last.cells.length).toBeLessThanOrEqual(160);
     const cap = [45, 60, 80];
     WORLDS.forEach((w, wi) => {
       for (const id of w.levels) {
@@ -168,4 +169,62 @@ describe('campaign.json', () => {
       expect(needed / regular.length, w.id).toBeGreaterThanOrEqual(0.7);
     }
   });
+
+  it('is human-solvable: few "aha" steps, scattered «Тишина», close islands, every cell pointed at', () => {
+    WORLDS.forEach((w, wi) => {
+      const last = wi === WORLDS.length - 1;
+      for (const id of w.levels) {
+        const l = levels.find((x) => x.id === id)!;
+        const r = solveDetailed(l, { trace: true });
+        const aha = ahaSteps(r);
+        const max = l.teach ? (w.n <= 3 ? 0 : 1) : w.n <= 3 ? 0 : w.n <= 8 ? 2 : last ? 10 : 4;
+        expect(aha.length, id).toBeLessThanOrEqual(max);
+        if (!last) for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, id).toBe(true);
+        const b = buildBoard(l);
+        const safe = l.cells.filter((c) => !c.gem).length;
+        const blank = l.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
+        if (!l.teach) expect(blank.length, id).toBeLessThanOrEqual(Math.round(safe * 0.11) + 1);
+        for (const i of blank) expect(b.phases[0].adj[i].filter((j) => l.cells[j].clue?.k === 'blank').length, id).toBeLessThanOrEqual(1);
+        // every cell is covered by some informative clue, zone or link
+        const covered = new Set<number>();
+        l.cells.forEach((_, i) => cellConstraintsAll(b, i).forEach((c) => c.cells.forEach((j) => covered.add(j))));
+        for (const z of l.zones ?? []) z.cells.forEach((j) => covered.add(j));
+        for (const k of l.links ?? []) (covered.add(k.a), covered.add(k.b));
+        l.cells.forEach((c, i) => { if (!c.start) expect(covered.has(i), `${id} cell ${i}`).toBe(true); });
+        // islands at most 2 empty hexes apart
+        const hexes = l.cells.flatMap((c) => [[c.q, c.r] as [number, number], ...(c.extra ?? [])]);
+        const comps = islandsOf(hexes);
+        for (let a = 1; a < comps.length; a++) {
+          let m = Infinity;
+          for (const [q1, r1] of comps[a]) for (let bI = 0; bI < comps.length; bI++) if (bI !== a) for (const [q2, r2] of comps[bI]) m = Math.min(m, (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2);
+          expect(m, id).toBeLessThanOrEqual(3);
+        }
+      }
+    });
+  });
 });
+
+function islandsOf(hexes: [number, number][]): [number, number][][] {
+  const set = new Set(hexes.map(([q, r]) => `${q},${r}`));
+  const seen = new Set<string>();
+  const out: [number, number][][] = [];
+  for (const [q, r] of hexes) {
+    if (seen.has(`${q},${r}`)) continue;
+    const comp: [number, number][] = [];
+    const st: [number, number][] = [[q, r]];
+    seen.add(`${q},${r}`);
+    while (st.length) {
+      const [x, y] = st.pop()!;
+      comp.push([x, y]);
+      for (const [dq, dr] of [[0, -1], [1, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]]) {
+        const k = `${x + dq},${y + dr}`;
+        if (set.has(k) && !seen.has(k)) {
+          seen.add(k);
+          st.push([x + dq, y + dr]);
+        }
+      }
+    }
+    out.push(comp);
+  }
+  return out;
+}

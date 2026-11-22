@@ -74,7 +74,32 @@ export interface GenOptions {
   simple?: boolean;
   /** Longest allowed run of cells cleared by easy steps between two harder steps (penalised above). */
   maxTrivialRun?: number;
+  /**
+   * Human solvability: at most `maxAha` steps that need more than a single clue, a pair of clues or
+   * the counter alone; with `deep: false` each of them is a tier-3 step over at most 3 clues (no
+   * contradiction chains). Default: none for targets <= 3, else 4 shallow ones.
+   */
+  human?: HumanLimits;
 }
+
+export interface HumanLimits {
+  maxAha: number;
+  deep: boolean;
+}
+
+/** Steps a person has to "see" (beyond single clues, pairs and the counter alone). */
+export function ahaSteps(r: { events: { tier: number; reasons: unknown[] }[] }) {
+  return r.events.filter((e) => e.tier >= 3);
+}
+
+export function humanOK(r: DetailedReport, h: HumanLimits): boolean {
+  if (!r.solved) return false;
+  const a = ahaSteps(r);
+  if (a.length > h.maxAha) return false;
+  return h.deep || a.every((e) => e.tier === 3 && e.reasons.length <= 3);
+}
+
+export const defaultHuman = (T: number): HumanLimits => (T <= 3 ? { maxAha: 0, deep: false } : { maxAha: 4, deep: false });
 
 /** Solver calls made by the current generateLevel() (deterministic work budget). */
 let work = 0;
@@ -582,6 +607,8 @@ function compact(level: Level): Level {
 const CROSS_ISLAND: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'eye', 'portal', 'zone', 'link'];
 
 function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed = false): Built | null {
+  const human = opts.human ?? defaultHuman(T);
+  const okH = (r: DetailedReport) => humanOK(r, human);
   const mech = new Set<MechanicId>(opts.mechanics);
   mech.add('basic');
   if (mech.has('multiline')) mech.add('line');
@@ -1004,7 +1031,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
       delete cells[i].clue;
       sanitize(level);
       const r = solve(level, { ...sOpts, trace: true });
-      if (r.solved && r.difficulty <= T + slack) {
+      if (r.solved && r.difficulty <= T + slack && okH(r)) {
         rep = r;
         gemsNow++;
       } else {
@@ -1018,7 +1045,10 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
 
   // --- minimisation: remove information while the rating stays within the target
   const safeNow = safe();
-  const maxBlanks = Math.round(safeNow.length * (isTeach ? 0.45 : T <= 2 ? 0.1 : T <= 4 ? 0.25 : T <= 6 ? 0.55 : 0.65));
+  // «Тишина» stays rare and scattered: at most ~11% of the safe cells, never in clusters
+  const maxBlanks = Math.round(safeNow.length * (isTeach ? 0.3 : T <= 2 ? 0.06 : 0.11));
+  const isBlank = (j: number) => cells[j].clue?.k === 'blank';
+  const blankNbs = (j: number) => bNow.phases[0].adj[j].filter(isBlank);
   let blanks = cells.filter((c) => c.clue?.k === 'blank').length;
   type Item = { tags: MechanicId[]; blank?: boolean; free?: () => boolean; apply: () => (() => void) | null };
   const items: Item[] = [];
@@ -1065,6 +1095,9 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
         apply: () => {
           const old = cells[i].clue;
           if (old?.k === 'blank') return null;
+          // no clusters: at most one blank neighbour, and that one has no other blank neighbour
+          const nb = blankNbs(i);
+          if (nb.length > 1 || nb.some((j) => blankNbs(j).length > 0)) return null;
           cells[i].clue = { k: 'blank' };
           return () => {
             cells[i].clue = old;
@@ -1140,7 +1173,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     }
     solves++;
     const r = solve(level, { ...sOpts, trace: true });
-    if (r.solved && r.difficulty <= cap) {
+    if (r.solved && r.difficulty <= cap && okH(r)) {
       rep = r;
       computeUsed(r);
       if (it.blank) blanks++;
@@ -1174,7 +1207,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
         delete cells[i].clue;
         sanitize(level);
         const r = solve(level, { ...sOpts, trace: true });
-        if (r.solved && r.difficulty <= T + slack && hardness(r) > hardness(rep)) {
+        if (r.solved && r.difficulty <= T + slack && okH(r) && hardness(r) > hardness(rep)) {
           rep = r;
           computeUsed(r);
         } else {
@@ -1192,6 +1225,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   level.diff = rep.difficulty;
   // penalties for the attempt ranking
   let penalty = 0;
+  if (!okH(rep)) penalty += 10; // a person would get stuck somewhere
   if (T >= 4) penalty += Math.max(0, openingShare(rep, n) - 0.5) * 4;
   if (opts.maxTrivialRun) penalty += Math.max(0, longestTrivialRun(rep) - opts.maxTrivialRun) / 8;
   penalty += Math.max(0, cells.filter((c) => c.start).length - nStarts) * 1.5; // extra starts are a last resort
@@ -1210,7 +1244,9 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
 export function generateLevel(opts: GenOptions): Level {
   const seedNum = typeof opts.seed === 'number' ? opts.seed >>> 0 : hashString(opts.seed);
   const T = Math.max(1, Math.min(10, Math.round(opts.targetDifficulty)));
-  const maxTier = maxTierFor(T);
+  const human = opts.human ?? defaultHuman(T);
+  // no deep reasoning allowed: the solver never goes beyond tier 3 (tier 2 when no aha step is allowed)
+  const maxTier = Math.min(maxTierFor(T), human.deep ? 4 : human.maxAha ? 3 : 2) as Tier;
   const attempts = opts.attempts ?? (opts.teach?.length ? 14 : opts.size > 140 ? 3 : 5);
   let best: Built | null = null;
   let bestScore = Infinity;
@@ -1326,6 +1362,7 @@ export function dailyLevel(dateISO: string, mechanics?: MechanicId[]): Level {
         attempts: 3,
         budget: 160,
         maxCols: 9,
+        human: { maxAha: 2, deep: false },
       };
     },
     4,
@@ -1338,12 +1375,12 @@ export type EndlessDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
 const ENDLESS: Record<
   EndlessDifficulty,
-  { size: [number, number]; target: number; range: [number, number]; mechs: [number, number]; density: [number, number]; budget: number }
+  { size: [number, number]; target: number; range: [number, number]; mechs: [number, number]; density: [number, number]; budget: number; human: HumanLimits }
 > = {
-  easy: { size: [25, 45], target: 2, range: [1, 2], mechs: [0, 2], density: [0.2, 0.24], budget: 200 },
-  medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280 },
-  hard: { size: [60, 90], target: 7, range: [5, 10], mechs: [3, 5], density: [0.29, 0.32], budget: 240 },
-  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 170 },
+  easy: { size: [25, 45], target: 2, range: [1, 2], mechs: [0, 2], density: [0.2, 0.24], budget: 200, human: { maxAha: 0, deep: false } },
+  medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280, human: { maxAha: 2, deep: false } },
+  hard: { size: [60, 90], target: 7, range: [5, 10], mechs: [3, 5], density: [0.29, 0.32], budget: 240, human: { maxAha: 4, deep: false } },
+  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 150, human: { maxAha: 6, deep: true } },
 };
 
 /** "Numbers and walls": what easy endless levels are made of unless mechanics are given. */
@@ -1373,10 +1410,11 @@ export function endlessLevel(seed: number | string, difficulty: EndlessDifficult
         attempts: 3,
         budget: cfg.budget,
         maxCols: 9,
+        human: cfg.human,
       };
     },
     cfg.range[0],
     cfg.range[1],
-    difficulty === 'easy' ? 3 : 4,
+    difficulty === 'easy' ? 3 : difficulty === 'expert' ? 6 : 4,
   );
 }

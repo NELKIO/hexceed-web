@@ -353,6 +353,7 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
       if (aspect(coords) <= 1.0 && columns(coords) <= maxCols) break;
     }
     if (o.islands && components(coords).length < 2) continue;
+    coords = packIslands(coords);
     if (!gaps && enclosedHoles(coords) > 0) continue; // no holes on boards without gaps
     const ar = aspect(coords);
     const tol = Math.max(3, size * 0.25);
@@ -365,6 +366,51 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
     coords = fitShape(fb, fb.make(rng), size, sy);
   }
   return { coords, shape: 'hexagon' };
+}
+
+/**
+ * Pull separate pieces towards the biggest one until they are 1–2 empty hexes apart (rays and
+ * portals then still read as one board, without a big hole in the middle of the screen).
+ */
+export function packIslands(coords: [number, number][]): [number, number][] {
+  const comps = components(coords);
+  if (comps.length < 2) return coords;
+  const placed: [number, number][] = [...comps[0]];
+  const dist = (a: [number, number][], b: [number, number][]) => {
+    let m = Infinity;
+    for (const [q1, r1] of a) for (const [q2, r2] of b) m = Math.min(m, (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2);
+    return m;
+  };
+  const centre = (c: [number, number][]) => {
+    let x = 0, y = 0;
+    for (const [q, r] of c) {
+      x += 1.5 * q;
+      y += SQ3 * (r + q / 2);
+    }
+    return [x / c.length, y / c.length];
+  };
+  for (const comp of comps.slice(1)) {
+    let cur = comp;
+    for (let step = 0; step < 60 && dist(placed, cur) > 3; step++) {
+      // move one hex in the edge direction that points best at the main piece
+      const [tx, ty] = centre(placed), [cx, cy] = centre(cur);
+      let bestD = 0, bestDot = -Infinity;
+      for (let d = 0; d < 6; d++) {
+        const [dq, dr] = DIRS[d];
+        const dot = 1.5 * dq * (tx - cx) + SQ3 * (dr + dq / 2) * (ty - cy);
+        if (dot > bestDot) {
+          bestDot = dot;
+          bestD = d;
+        }
+      }
+      const [dq, dr] = DIRS[bestD];
+      const next = cur.map(([q, r]) => [q + dq, r + dr] as [number, number]);
+      if (dist(placed, next) < 2) break;
+      cur = next;
+    }
+    placed.push(...cur);
+  }
+  return placed;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyLevel, endlessLevel, generateLevel, SHAPE_IDS, teachOK } from '../src/core/generator';
+import { ahaSteps, dailyLevel, endlessLevel, generateLevel, SHAPE_IDS, teachOK } from '../src/core/generator';
 import { buildBoard } from '../src/core/rules';
 import { solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level, MechanicId } from '../src/core/types';
@@ -155,5 +155,20 @@ describe('generator', () => {
     expect(L.zones ?? []).toHaveLength(0);
     expect(JSON.stringify(dailyLevel('2026-12-24', allowed))).toBe(JSON.stringify(L));
     expect(dailyLevel('2026-12-24').diff!).toBeGreaterThanOrEqual(3);
+  });
+
+  it('daily and easy endless stay human-solvable; «Тишина» is rare and scattered', () => {
+    const check = (L: ReturnType<typeof dailyLevel>, maxAha: number) => {
+      const r = solveDetailed(L, { trace: true });
+      const aha = ahaSteps(r);
+      expect(aha.length, L.id).toBeLessThanOrEqual(maxAha);
+      for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, L.id).toBe(true);
+      const b = buildBoard(L);
+      const blanks = L.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
+      expect(blanks.length).toBeLessThanOrEqual(Math.round(L.cells.filter((c) => !c.gem).length * 0.11) + 1);
+      for (const i of blanks) expect(b.phases[0].adj[i].filter((j) => L.cells[j].clue?.k === 'blank').length).toBeLessThanOrEqual(1);
+    };
+    for (const d of ['2026-11-22', '2026-11-23', '2026-11-24']) check(dailyLevel(d), 2);
+    for (const s of [1, 2, 3]) check(endlessLevel(s, 'easy'), 0);
   });
 });

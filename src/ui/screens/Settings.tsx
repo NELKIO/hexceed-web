@@ -45,10 +45,10 @@ export function SettingsScreen() {
           <Row icon={<IconPalette />} title={t('theme')} stack>
             <Segmented
               value={s.theme}
-              onChange={(theme) => updateSettings({ theme })}
+              onChange={(theme) => updateSettings({ theme, themeChosen: true })}
               options={[
-                { v: 'dark', label: t('themeDark'), icon: <IconMoon /> },
                 { v: 'light', label: t('themeLight'), icon: <IconSun /> },
+                { v: 'dark', label: t('themeDark'), icon: <IconMoon /> },
                 { v: 'auto', label: t('themeAuto'), icon: <IconAuto /> },
               ]}
             />

@@ -70,6 +70,8 @@ export type LangPref = 'auto' | 'ru' | 'en';
 export interface Settings {
   lang: LangPref;
   theme: ThemePref;
+  /** The player picked the theme in the settings (otherwise the default applies, even after an update). */
+  themeChosen?: boolean;
   volume: number; // 0..1
   vibration: boolean;
   leftHanded: boolean;
@@ -83,8 +85,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   lang: 'auto',
-  // dark «Ночь» is the default since v3; a theme the player saved earlier (light, auto) is kept
-  theme: 'dark',
+  // light «Утро» is the default since v4; dark «Ночь» is a choice in the settings
+  theme: 'light',
   volume: 0.7,
   vibration: true,
   leftHanded: false,
@@ -106,7 +108,9 @@ export function loadSettings(): Settings {
   const D = DEFAULT_SETTINGS;
   return {
     lang: oneOf(o.lang, ['auto', 'ru', 'en'] as const, D.lang),
-    theme: oneOf(o.theme, ['auto', 'light', 'dark'] as const, D.theme),
+    // In older saves only dark is ambiguous: it was also written when saving unrelated settings.
+    theme: o.themeChosen === true || o.theme === 'auto' ? oneOf(o.theme, ['auto', 'light', 'dark'] as const, D.theme) : D.theme,
+    themeChosen: o.themeChosen === true,
     volume: num(o.volume) ? Math.max(0, Math.min(1, o.volume)) : D.volume,
     vibration: bool(o.vibration, D.vibration),
     leftHanded: bool(o.leftHanded, D.leftHanded),

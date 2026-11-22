@@ -4,9 +4,9 @@ Original hexagonal logic puzzle for the browser (GitHub Pages), in the "hex mine
 Clean-room: all code, levels, graphics and sounds are original. Repo: `NELKIO/hexceed-web`,
 site: `https://nelkio.github.io/hexceed-web/`.
 
-Target players: the owner (likes hard puzzles) and his girlfriend (needs a very low entry barrier).
-So: **dark theme by default** (light «Бумага» optional; visual system in `docs/STYLE.md`), gentle onboarding, no game over, optional
-hints that explain *why*, and later worlds that are genuinely hard.
+The early puzzles should be approachable; later worlds should reward careful deduction.
+Use **light «Утро» by default** (dark «Ночь» is optional; see `docs/STYLE.md`), gentle onboarding,
+no game over in the default mode, and optional hints that explain *why*.
 
 ## Theme
 
@@ -32,21 +32,18 @@ The board is a set of hexes. Every hidden hex is either a **light** («огон�
 |----|-----------|---------------|
 | basic | Число | lights among the 6 neighbours (not through walls) |
 | counter | Счётчик | remaining lights on the whole board |
-| walls | Стены | thick edge between two hexes: blocks neighbours, lines, eyes |
-| gaps | Пустоты | holes in the board; rays, rings, cones and eyes jump across them |
-| line | Луч | arrow(s): lights along straight line(s), stopped by walls |
-| ring | Кольцо | lights within 2 steps (18 hexes), ignores walls |
-| cone | Конус | 9-hex wedge from a corner, up to 3 steps, ignores walls |
+| availability (`fog` in level data) | Доступные клетки | the entire map is drawn; clues and static zones make hidden cells playable |
+| walls | Стены | a thick edge blocks neighbours and rays |
+| gaps | Пустоты | missing hexes and gaps between islands; rays can cross them |
+| line, multiline | Луч | lights along one or several straight rays, stopped by walls |
+| radius, ring, donut | Круг, кольцо, бублик | lights at distances 1–2, exactly 2, or 2–3 |
+| cone, triangle | Конус, треугольник | lights in a wedge or a separate six-position angular area |
+| dot | Точка | lights at the indicated positions two steps away |
 | lock | Замок | known-empty hex that opens by itself after N lights are marked |
-| gemclue | Яркий огонёк | a lit cell that shows a count |
-| together | Вместе `{n}` | the n neighbouring lights form one connected arc |
-| apart | Врозь `-n-` | the lights do NOT form one arc |
-| eye | Глаз | how many hexes are seen along the 6 straight lines up to the first light or wall (holes jumped) |
-| parity | Чёт/нечет (new) | only the parity of neighbouring lights |
-| spin | Флюгер | arrow you can rotate with a tap; shows the line count for the current direction |
-| link | Нить (new) | thread between two hexes: "=" same kind, "≠" different kinds |
-| zone | Зона (new) | dashed outline around several hexes with the light count inside |
-| blank | Тишина | an open hex with no information |
+| rotate | Вращение | cells can rotate, moving their walls and clue directions |
+| zone | Зона | dashed outline around several hexes with the light count inside |
+
+Legacy mechanics remain readable in existing workshop links, but are not generated for new puzzles.
 
 ## Structure
 

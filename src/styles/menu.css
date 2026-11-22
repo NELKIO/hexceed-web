@@ -143,7 +143,7 @@
   padding: 14px 14px 14px 20px;
   border-radius: var(--radius);
   background: var(--cta);
-  color: var(--lume-ink);
+  color: var(--cta-ink);
   text-align: left;
   transition: filter 0.16s var(--ease), transform 0.12s var(--ease);
 }
@@ -202,7 +202,7 @@
   width: 46px;
   height: 46px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--lume-ink) 10%, transparent);
+  background: color-mix(in srgb, var(--cta-ink) 10%, transparent);
   display: grid;
   place-items: center;
   flex: none;
@@ -298,7 +298,7 @@
 .mc-stars svg {
   width: 11px;
   height: 11px;
-  color: var(--lume);
+  color: var(--star);
 }
 
 .mc-badge .mc-streak {
@@ -319,8 +319,24 @@
 
 .mlinks {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
+}
+
+:root:not([data-theme='dark']) .mlinks button {
+  background: var(--surface);
+  border-color: transparent;
+  box-shadow: var(--card-shadow);
+}
+
+:root:not([data-theme='dark']) .mcard,
+:root:not([data-theme='dark']) .world,
+:root:not([data-theme='dark']) .diff,
+:root:not([data-theme='dark']) .mrow,
+:root:not([data-theme='dark']) .try,
+:root:not([data-theme='dark']) .st-grid {
+  border-color: transparent;
+  box-shadow: var(--card-shadow);
 }
 
 /* the workshop: a fourth small link on phones, a wide row of the mode list on wide screens */
@@ -509,7 +525,7 @@
   padding: 6px 12px;
   border-radius: 8px;
   background: var(--cta);
-  color: var(--lume-ink);
+  color: var(--cta-ink);
   font-weight: 650;
 }
 

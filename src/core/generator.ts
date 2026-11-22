@@ -25,7 +25,7 @@ import {
   triangleCells,
   type Board,
 } from './rules';
-import { carveHoles, components, makeShape, SHAPE_IDS, SHAPES, type ShapeId } from './shapes';
+import { carveHoles, components, makeArchipelago, makeShape, SHAPE_IDS, SHAPES, type ShapeId } from './shapes';
 import { constraintMechanics, solveDetailed, type DetailedReport, type SolveOptions, type Tier } from './solver';
 import type { Clue, Level, LevelCell, Link, MechanicId, Portal, Wall, Zone } from './types';
 
@@ -48,8 +48,11 @@ export interface GenOptions {
   walls?: number;
   /** Allow holes (also implied by 'gaps' / 'portal' in mechanics). */
   gaps?: boolean;
-  /** Split the board into 2–3 islands (default: half of the levels when gaps are allowed). */
-  islands?: boolean;
+  /**
+   * Separate islands: a count (2–6 pieces of ~6–30 cells, one empty hex apart), true for a random
+   * count, false for one piece. Default when gaps are allowed: 2–6 islands on most boards.
+   */
+  islands?: boolean | number;
   /** Share of safe cells carrying a non-num clue (default 0.15). */
   special?: number;
   /** Fog of war (default: on when 'fog' is among the mechanics). */
@@ -92,7 +95,7 @@ export interface GenOptions {
  * Version of the generation output: bump whenever the same seed would produce a different level
  * (the UI keys cached daily / endless levels by it).
  */
-export const GEN_VERSION = '6.0';
+export const GEN_VERSION = '7.0';
 
 export interface HumanLimits {
   /** Hard cells: moves that need more than one clue, a pair of clues or the counter alone. */
@@ -493,6 +496,9 @@ const GEM_CLUES = ['num', 'radius', 'ring'];
  * Make every piece of information true for the current crystal layout: drop modifiers that no
  * longer hold (in any phase), recompute links, clamp locks, keep starts / locks on safe cells.
  */
+/** Crystals may carry a clue only on levels with the (currently cut) gemclue mechanic. */
+let allowGemClues = false;
+
 function sanitize(level: Level): void {
   const cells = level.cells;
   const total = cells.filter((c) => c.gem).length;
@@ -502,7 +508,7 @@ function sanitize(level: Level): void {
       delete c.lock;
       delete c.alt;
       delete c.rot;
-      if (c.clue && (c.extra || !GEM_CLUES.includes(c.clue.k))) delete c.clue;
+      if (c.clue && (c.extra || !allowGemClues || !GEM_CLUES.includes(c.clue.k))) delete c.clue;
       if (c.clue?.mod) delete c.clue.mod;
     } else if (c.lock) {
       if (total < 1) delete c.lock;
@@ -651,6 +657,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const human = opts.human ?? defaultHuman(T);
   const okH = (r: DetailedReport) => humanOK(r, human);
   const mech = new Set<MechanicId>(opts.mechanics);
+  allowGemClues = mech.has('gemclue');
   mech.add('basic');
   if (mech.has('multiline')) mech.add('line');
   const teach = (opts.teach ?? []).filter((t) => mech.has(t) || t === 'basic');
@@ -659,13 +666,24 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const gaps = !!opts.gaps || mech.has('gaps') || mech.has('portal');
   // islands only when some clue can carry information across (otherwise every island needs a start)
   const wantPortal = cx.teach.has('portal') || (opts.feature ?? []).includes('portal');
-  const islands = opts.islands ?? (gaps && size >= 16 && (wantPortal || (CROSS_ISLAND.some((m) => mech.has(m)) && rng.chance(0.5))));
+  // like the original: most boards with gaps are archipelagos of 2–6 islands of ~6–30 cells
+  const kMin = Math.max(2, Math.ceil(size / 30)), kMax = Math.max(kMin, Math.min(6, Math.floor(size / 7)));
+  const randomK = () => kMin + rng.int(kMax - kMin + 1);
+  const islandCount =
+    typeof opts.islands === 'number' ? opts.islands
+    : opts.islands === true ? randomK()
+    : opts.islands === false ? 1
+    : gaps && size >= 16 && (wantPortal || rng.chance(0.85)) ? randomK() : 1;
+  const islands = islandCount >= 2;
   const fog = opts.fog ?? mech.has('fog');
   const isTeach = teach.length > 0;
   const NT = 3; // special cells on a teaching level
 
   // --- outline
-  let { coords, shape } = makeShape(rng, size, { gaps, islands, want: opts.shape, maxCols: opts.maxCols, simple: opts.simple });
+  let { coords, shape } =
+    islands && !opts.shape
+      ? { coords: makeArchipelago(rng, size, islandCount, opts.maxCols ?? 9), shape: 'islands2' as ShapeId }
+      : makeShape(rng, size, { gaps, islands, want: opts.shape, maxCols: opts.maxCols, simple: opts.simple });
   if (gaps && !islands && !SHAPES.find((s) => s.id === shape)!.gaps && size >= 16 && (mech.has('portal') || rng.chance(0.6))) coords = carveHoles(rng, coords);
   let cells: LevelCell[] = coords.map(([q, r]) => ({ q, r, gem: false }));
   const level: Level = { id: opts.id ?? `gen-${typeof opts.seed === 'number' ? opts.seed : hashString(opts.seed)}`, cells, walls: [] };
@@ -696,7 +714,9 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const modP = isTeach ? 0 : 0.3;
   for (const i of safe()) {
     let clue: Clue | undefined | null = undefined;
-    if (!cells[i].extra && kinds.length && rng.chance(special)) {
+    // like the original: special clues sit on island edges more often than inside
+    const edge = b.rawNeighbours[i].some((j) => j < 0);
+    if (!cells[i].extra && kinds.length && rng.chance(Math.min(1, special * (edge ? 1.25 : 0.7)))) {
       for (let tries = 0; tries < 3 && !clue; tries++) {
         const k = pickWeighted(rng, kinds, weightOf);
         if (k) clue = specialClue(cx, b, i, gem, k, modP);
@@ -888,7 +908,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   );
   const compOf = (i: number) => unitComps.findIndex((s) => s.has(i));
   const crossInfo = CROSS_ISLAND.some((m) => mech.has(m));
-  const nStarts = opts.starts ?? (unitComps.length > 1 && !crossInfo ? Math.min(3, unitComps.length) : 1);
+  const nStarts = opts.starts ?? (unitComps.length > 1 && !crossInfo ? Math.min(6, unitComps.length) : 1);
   // a start whose number is 0 opens the board (like a first click): preferred on easy levels only,
   // harder levels start anywhere (no big opening cascade)
   const preferZero = T <= 1 || isTeach;
@@ -954,14 +974,18 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const tabu: number[] = [];
   let stall = 0;
   let noFront = 0;
-  let extraStarts = n >= 120 || relaxed ? Math.max(0, 3 - bestStarts.length) : 0; // big boards may get 2–3 starts
+  // big boards and archipelagos may get more starts (at most one per island)
+  const maxStarts = unitComps.length > 1 ? unitComps.length : n >= 120 || relaxed ? 3 : 1; // at most one per island
+  let extraStarts = Math.max(0, maxStarts - bestStarts.length);
+  // an extra start only goes to an island that has none yet
+  const startless = (i: number) => !cells.some((c, j) => c.start && (unitComps.length > 1 ? compOf(j) === compOf(i) : false));
   for (let it = 0; !rep.solved && !spent(); it++) {
     if (it >= repairs) {
       if (!extraStarts) break;
       // add a start in the unknown part (a zero cell when possible) and go on repairing
       const vals = rep.stuckAt!;
       const bb = buildBoard(level);
-      const unk = rng.shuffle(safe().filter((i) => vals[i] === -1 && !cells[i].lock && !cells[i].extra && !cells[i].rot && !cells[i].alt));
+      const unk = rng.shuffle(safe().filter((i) => vals[i] === -1 && !cells[i].lock && !cells[i].extra && !cells[i].rot && !cells[i].alt && startless(i)));
       const s = unk.find((i) => bb.phases[0].adj[i].every((j) => !cells[j].gem)) ?? unk[0];
       if (s === undefined) break;
       cells[s].start = true;
@@ -985,7 +1009,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     // carries information across gaps); move A: toggle a frontier cell
     let upgraded = false;
     const reach = kinds.filter((k) => REACHING.includes(k));
-    if (reach.length && (!front.length || (stall >= 6 && it % 2 === 0) || rng.chance(0.2))) {
+    if (reach.length && (!front.length || (stall >= 6 && it % 2 === 0) || rng.chance(0.08))) {
       const unknownHex = cells.filter((_, j) => vals[j] === -1);
       const dist = (i: number) => Math.min(...unknownHex.map((u) => hexDistance(cells[i].q, cells[i].r, u.q, u.r)));
       const known = rng
@@ -1024,9 +1048,9 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
     }
     if (!upgraded && !front.length) {
       // an island nothing reaches: it gets its own start
-      const unk = rng.shuffle(safe().filter((i) => vals[i] === -1 && !cells[i].lock && !cells[i].extra && !cells[i].rot && !cells[i].alt));
+      const unk = rng.shuffle(safe().filter((i) => vals[i] === -1 && !cells[i].lock && !cells[i].extra && !cells[i].rot && !cells[i].alt && startless(i)));
       const st = unk.find((i) => bb.phases[0].adj[i].every((j) => !cells[j].gem)) ?? unk[0];
-      if (st === undefined || cells.filter((c) => c.start).length >= 3) break;
+      if (st === undefined || cells.filter((c) => c.start).length >= maxStarts) break;
       cells[st].start = true;
       upgraded = true;
     }
@@ -1264,14 +1288,16 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
         let tries = 0;
         for (const i of [...head, ...tail]) {
           if (tries >= 14 || spent()) break;
-          for (const how of ['blank', 'gem'] as const) {
+          for (const how of ['blank', 'plain', 'gem'] as const) {
             const blanksNow = cells.filter((c) => c.clue?.k === 'blank').length;
             const nb = bnow.phases[0].adj[i].filter((j) => cells[j].clue?.k === 'blank');
             if (how === 'blank' && !(mech.has('blank') && blanksNow < maxBlanksTotal && nb.length <= 1 && nb.every((j) => bnow.phases[0].adj[j].filter((k) => cells[k].clue?.k === 'blank').length === 0))) continue;
             if (how === 'gem' && cells.filter((c) => c.gem).length >= Math.round((density + 0.04) * n)) continue;
+            if (how === 'plain' && (!cells[i].clue || cells[i].clue!.k === 'num')) continue;
             tries++;
             const snapshot = JSON.stringify(level);
             if (how === 'blank') cells[i].clue = { k: 'blank' };
+            else if (how === 'plain') delete cells[i].clue; // a ranged clue becomes a plain number
             else {
               // turn the cell into a crystal: changes the numbers around it
               cells[i].gem = true;
@@ -1442,17 +1468,17 @@ function fallbackLevel(opts: GenOptions, seedNum: number): Level {
 // ---------------------------------------------------------------------------------------------
 // Daily & endless
 
-const EXTRA_MECHS: MechanicId[] = [
-  'walls', 'gaps', 'line', 'multiline', 'radius', 'ring', 'donut', 'cone', 'triangle', 'lock', 'gemclue', 'dot', 'swirl',
-  'rotate', 'switch', 'big', 'portal', 'island', 'chain', 'together', 'apart', 'eye', 'parity', 'link', 'zone',
-];
+/** Mechanics daily / endless draw from (the game's current set; cut mechanics are not generated). */
+const EXTRA_MECHS: MechanicId[] = ['walls', 'gaps', 'line', 'multiline', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'lock', 'rotate', 'zone'];
 
 /** basic + counter + fog + blank and k extra mechanics, drawn from `from` (default: all). */
 function randomMechanics(rng: Rng, k: number, from: MechanicId[] = EXTRA_MECHS): MechanicId[] {
   const allowed = new Set(from);
   const pool = rng.shuffle(EXTRA_MECHS.filter((m) => allowed.has(m)));
-  const base: MechanicId[] = ['basic', 'counter', 'fog', 'blank'].filter((m) => m === 'basic' || allowed.has(m as MechanicId) || from === EXTRA_MECHS) as MechanicId[];
+  const base: MechanicId[] = (['basic', 'counter', 'fog'] as MechanicId[]).filter((m) => m === 'basic' || allowed.has(m) || from === EXTRA_MECHS);
   const out: MechanicId[] = [...base, ...pool.slice(0, k)];
+  // boards are usually archipelagos (like the original): gaps whenever allowed
+  if (allowed.has('gaps') && !out.includes('gaps')) out.push('gaps');
   if (out.includes('multiline') && !out.includes('line') && allowed.has('line')) out.push('line');
   if ((out.includes('gaps') || out.includes('portal')) && !out.includes('line') && allowed.has('line') && rng.chance(0.7)) out.push('line');
   return out;
@@ -1546,8 +1572,10 @@ export function endlessLevel(seed: number | string, difficulty: EndlessDifficult
         id: `endless-${difficulty}-${seed}`,
         size,
         density: cfg.density[0] + rng.next() * (cfg.density[1] - cfg.density[0]),
-        special: 0.12 + rng.next() * 0.1,
+        special: 0.08 + rng.next() * 0.06,
         mechanics: mechs,
+        // the hard modes keep bigger pieces: 2–3 islands or one board
+        islands: mechs.includes('gaps') && (difficulty === 'hard' || difficulty === 'expert') ? (rng.chance(0.4) ? false : 2 + rng.int(2)) : undefined,
         targetDifficulty: cfg.target,
         attempts: 3,
         budget: cfg.budget,

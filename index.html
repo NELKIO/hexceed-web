@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="ru" data-theme="dark">
+<html lang="ru" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
     <title>Hexlume — логическая головоломка на шестиугольниках</title>
     <meta name="description" content="Зажги все спрятанные огоньки на шестиугольном поле. Только логика, никаких угадываний. Кампания, задача дня, бесконечный режим." />
-    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: light)" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#e8edf4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#e8edf4" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Hexlume" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Hexlume" />
@@ -28,17 +28,15 @@
       // apply the saved / system theme before the first paint (no flash)
       try {
         var s = JSON.parse(localStorage.getItem('hexlume:settings') || '{}');
-        // dark by default; "light" when chosen; "auto" follows the system
-        var th = s.theme === 'light' ? 'light' : s.theme === 'auto' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        // Migrate the old dark default, but keep a saved system preference.
+        var pref = s.themeChosen === true || s.theme === 'auto' ? s.theme : 'light';
+        var th = pref === 'dark' ? 'dark' : pref === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.dataset.theme = th;
-        if (s.theme !== 'auto')
-          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-            m.setAttribute('content', th === 'dark' ? '#0b0c0f' : '#f4f2ed');
-          });
-        else
-          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-            if ((m.getAttribute('media') || '').indexOf('light') >= 0) m.setAttribute('content', '#f4f2ed');
-          });
+        document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+          var media = m.getAttribute('media') || '';
+          var scheme = pref === 'auto' ? (media.indexOf('dark') >= 0 ? 'dark' : 'light') : th;
+          m.setAttribute('content', scheme === 'dark' ? '#0b0c0f' : '#e8edf4');
+        });
       } catch (e) {}
     </script>
   </head>

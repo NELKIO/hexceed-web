@@ -1058,7 +1058,7 @@ export function GameView(props: GameViewProps) {
           wallSegs={pre.wallSegs}
           portals={portals}
           glowWave={win && !reduced ? layout.px[winFrom.current] ?? null : null}
-          focus={visRef.current}
+          focus={undefined /* the whole map is always framed */}
           anchor={anchor.current}
           must={init.must}
           onOverflow={panTip}

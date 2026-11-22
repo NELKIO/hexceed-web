@@ -6,7 +6,7 @@ import { setVolume, setVibration } from '../audio/sfx';
 let current: Settings = loadSettings();
 const subs = new Set<() => void>();
 let mql: MediaQueryList | null = null;
-const THEME_LIGHT = '#f4f2ed';
+const THEME_LIGHT = '#e8edf4';
 const THEME_DARK = '#0b0c0f';
 
 export function getSettings(): Settings {
@@ -22,7 +22,7 @@ export function updateSettings(patch: Partial<Settings>): void {
 
 export function resolvedTheme(): 'light' | 'dark' {
   if (current.theme !== 'auto') return current.theme;
-  return mql && !mql.matches ? 'light' : 'dark';
+  return mql?.matches ? 'dark' : 'light';
 }
 
 function apply(): void {

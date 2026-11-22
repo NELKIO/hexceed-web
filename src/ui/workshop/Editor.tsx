@@ -36,12 +36,13 @@ const TOOLS: { id: Tool; label: WKey; icon: (p: JSX.SVGAttributes<SVGSVGElement>
   { id: 'start', label: 'tool_start', icon: IcStart },
   { id: 'lock', label: 'tool_lock', icon: IconLock },
   { id: 'wall', label: 'tool_wall', icon: IcWall },
-  { id: 'portal', label: 'tool_portal', icon: IcPortal },
-  { id: 'link', label: 'tool_link', icon: IcThread },
   { id: 'zone', label: 'tool_zone', icon: IcZone },
   { id: 'rot', label: 'tool_rot', icon: IconRotate },
-  { id: 'big', label: 'tool_big', icon: IcBig },
+  // portals, threads and big cells were cut from the game (old drafts still load and render)
 ];
+void IcPortal;
+void IcThread;
+void IcBig;
 
 const TIP: Record<Tool, WKey> = {
   paint: 'tip_paint', gem: 'tip_gem', clue: 'tip_clue', start: 'tip_start', lock: 'tip_lock', wall: 'tip_wall', portal: 'tip_portal',
@@ -674,7 +675,8 @@ function ClueEditor({ level, i, commit }: { level: Level; i: number; commit: (l:
   const big = !!c.extra?.length;
   const cur: Clue | null = c.clue ?? (c.gem ? null : { k: 'num' });
   const set = (cl: Clue | undefined) => commit(setClue(level, i, cl));
-  const kinds = CLUE_KINDS.filter((k) => !(c.gem && k === 'blank'));
+  // lights carry no clue any more («Яркий огонёк» was cut)
+  const kinds = c.gem ? [] : CLUE_KINDS;
   const pick = (k: ClueKind | 'none') => {
     sfx.toggle();
     if (k === 'none') return set(undefined);
@@ -693,7 +695,9 @@ function ClueEditor({ level, i, commit }: { level: Level; i: number; commit: (l:
     if (nc.k === 'line' && (nc.dirs?.length ?? 1) !== 1) delete nc.mod;
     set(nc);
   };
-  const modable = !!cur && !big && (cur.k === 'num' || (cur.k === 'line' && (cur.dirs?.length ?? 1) === 1));
+  // together / apart were cut from the game
+  const modable = false;
+  void big;
   const name = (k: ClueKind) => t(mechTitle(k === 'num' ? 'basic' : k));
   return (
     <div class="ed-clue">
@@ -762,7 +766,6 @@ const ROTS: { v: string; rot: number[] | undefined; label: WKey }[] = [
   { v: '3', rot: [0, 2, 4], label: 'rot3' },
   { v: '6', rot: [0, 1, 2, 3, 4, 5], label: 'rot6' },
 ];
-const ALTS: ('none' | ClueKind)[] = ['none', 'blank', 'parity', 'num', 'radius', 'ring', 'eye', 'island'];
 
 function RotEditor({ level, i, commit, say }: { level: Level; i: number; commit: (l: Level | null) => boolean; say: (s: string) => void }) {
   const c = level.cells[i];
@@ -777,16 +780,19 @@ function RotEditor({ level, i, commit, say }: { level: Level; i: number; commit:
         <span class="ed-plabel">{wt('rotLabel')}</span>
         <Chips value={rv} options={ROTS.map((r) => ({ v: r.v, label: wt(r.label) }))} onChange={(v) => commit(setRot(level, i, ROTS.find((r) => r.v === v)!.rot))} />
       </div>
-      <div class="ed-prow">
-        <span class="ed-plabel">{wt('altLabel')}</span>
-        <Chips
-          value={av}
-          options={ALTS.filter((k) => !(c.gem && k === 'blank')).map((k) => ({ v: k, label: k === 'none' ? wt('altNone') : name(k) }))}
-          onChange={(v) => {
-            if (!commit(setAlt(level, i, v === 'none' ? undefined : [{ k: v as ClueKind }]))) say(wt('lint_invalid'));
-          }}
-        />
-      </div>
+      {/* switching clues were cut; an old draft's switch can still be removed */}
+      {av !== 'none' && (
+        <div class="ed-prow">
+          <span class="ed-plabel">{wt('altLabel')}</span>
+          <Chips
+            value={av}
+            options={(['none', av] as ('none' | ClueKind)[]).map((k) => ({ v: k, label: k === 'none' ? wt('altNone') : name(k) }))}
+            onChange={(v) => {
+              if (!commit(setAlt(level, i, v === 'none' ? undefined : [{ k: v as ClueKind }]))) say(wt('lint_invalid'));
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

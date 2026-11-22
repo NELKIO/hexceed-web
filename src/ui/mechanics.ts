@@ -13,6 +13,12 @@ export const MECH_ORDER: Mech[] = [
   'rotate', 'switch', 'link', 'zone', 'blank',
 ];
 
+/** Mechanics the owner cut from the game: still rendered and explained in old levels / share links, never listed. */
+export const CUT_MECHS = new Set<Mech>(['swirl', 'gemclue', 'together', 'apart', 'eye', 'parity', 'island', 'chain', 'big', 'portal', 'switch', 'link', 'blank']);
+
+/** Mechanics shown in lists (how to play, workshop): the game as it is now. */
+export const MECH_SHOWN: Mech[] = MECH_ORDER.filter((m) => !CUT_MECHS.has(m));
+
 export const mechTitle = (m: Mech) => `m_${m}` as TKey;
 export const mechDesc = (m: Mech) => `m_${m}_d` as TKey;
 

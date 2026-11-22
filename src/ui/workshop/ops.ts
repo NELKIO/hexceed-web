@@ -154,8 +154,8 @@ export const toggleGem = (src: Level, i: number) =>
     if (c.gem) {
       delete c.start;
       delete c.lock;
-      if (c.clue?.k === 'num' && !c.clue.mod) delete c.clue;
-      if (c.clue?.k === 'blank') delete c.clue;
+      delete c.clue;
+      delete c.alt;
     }
   });
 

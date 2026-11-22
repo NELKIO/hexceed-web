@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { act, activeConstraints, knownVals, newGame } from '../src/core/game';
+import { act, activeConstraints, knownVals, newGame, visibleCells } from '../src/core/game';
 import { ahaCells, ahaSteps, deepCells, hardRun, longestTrivialRun, teachOK } from '../src/core/generator';
 import { buildBoard, cellConstraintsAll, portalTarget } from '../src/core/rules';
 import { nextDeduction, solveDetailed, solveLevel } from '../src/core/solver';
@@ -38,7 +38,7 @@ describe('campaign.json', () => {
     const ids = levels.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual(WORLDS.flatMap((w) => w.levels));
-    expect(levels.length).toBeGreaterThanOrEqual(140);
+    expect(levels.length).toBeGreaterThanOrEqual(130);
   });
 
   it('every level is solvable without guessing and rated as stored', () => {
@@ -75,12 +75,15 @@ describe('campaign.json', () => {
     const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
     expect(avg(of(0))).toBeLessThanOrEqual(1.5);
     expect(avg(of(1))).toBeLessThanOrEqual(2); // world 2: a few pair steps on top of the novice cascades
-    const late = [9, 10, 11, 12].flatMap(of);
-    expect(avg(late)).toBeGreaterThanOrEqual(5.3);
-    expect(late.filter((d) => d >= 6).length).toBeGreaterThanOrEqual(30);
+    // every safe cell shows its clue now (no «Тишина»): difficulty comes from density, ranged clues
+    // and walls, so the late worlds are relaxed-but-interesting rather than brutal
+    const late = [7, 8, 9].flatMap(of);
+    expect(avg(late)).toBeGreaterThanOrEqual(5);
     const finale = of(WORLDS.length - 1);
-    expect(avg(finale)).toBeGreaterThanOrEqual(8);
-    expect(finale.filter((d) => d >= 9).length).toBeGreaterThanOrEqual(3);
+    expect(avg(finale)).toBeGreaterThanOrEqual(6.5);
+    expect(finale.filter((d) => d >= 8).length).toBeGreaterThanOrEqual(3);
+    // world averages rise
+    for (let w = 1; w < WORLDS.length; w++) expect(avg(of(w)), WORLDS[w].id).toBeGreaterThanOrEqual(avg(of(w - 1)) - 0.3);
     // world finales: hard steps spread through the solve (worlds 1–2 are pure number cascades)
     for (const w of WORLDS.slice(2)) {
       const l = levels.find((x) => x.id === w.levels[w.levels.length - 1])!;
@@ -101,22 +104,15 @@ describe('campaign.json', () => {
     expect(fog.teach).toEqual(['fog']);
     expect(fog.fog).not.toBe(false);
     expect(fog.cells.length).toBeLessThanOrEqual(16);
-    // «Тишина» is taught at w01-09; the levels before it are pure numbers
-    expect(levels.find((x) => x.id === 'w01-09')!.teach).toEqual(['blank']);
-    for (const id of WORLDS[0].levels) {
-      const l = levels.find((x) => x.id === id)!;
-      expect(l.cells.length, id).toBeLessThanOrEqual(37);
-      if (id < 'w01-09') expect(l.cells.some((c) => c.clue?.k === 'blank'), id).toBe(false);
-    }
+    for (const id of WORLDS[0].levels) expect(levels.find((x) => x.id === id)!.cells.length, id).toBeLessThanOrEqual(37);
   });
 
-  // TODO(docs/NEXT.md): re-enable after the campaign is regenerated with the new size caps.
-  it('follows the calibration: one start, fog, sizes', () => {
+  it('follows the calibration: limited starts, availability rules and sizes', () => {
     levels.forEach((l, i) => {
       const starts = l.cells.filter((c) => c.start).length;
       if (i === 0) expect(starts, l.id).toBeLessThanOrEqual(3);
       else if (l.cells.length >= 120) expect(starts, l.id).toBeLessThanOrEqual(3);
-      else expect(starts, l.id).toBeLessThanOrEqual(islands(l) > 1 ? 3 : l.teach ? 2 : 1);
+      else expect(starts, l.id).toBeLessThanOrEqual(islands(l) > 1 ? Math.max(3, islands(l)) : l.teach ? 2 : 1); // at most one start per island
       expect(l.fog !== false, l.id).toBe(i >= 3 && l.id !== 'w01-05'); // the counter is taught without fog
       expect(l.cells.length, l.id).toBeLessThanOrEqual(190);
     });
@@ -141,8 +137,10 @@ describe('campaign.json', () => {
       const g = newGame(l, 0);
       let won = false;
       for (let step = 0; step <= l.cells.length && !won; step++) {
-        const d = nextDeduction(g.board, knownVals(g), activeConstraints(g));
+        const visible = visibleCells(g);
+        const d = nextDeduction(g.board, knownVals(g), activeConstraints(g), visible);
         expect(d, l.id).not.toBeNull();
+        expect(visible[d!.cell], l.id).toBe(1);
         const r = act(g, d!.cell, d!.gem ? 'mark' : 'reveal', 1);
         expect(r.ok, l.id).toBe(true);
         won = r.won;
@@ -169,7 +167,7 @@ describe('campaign.json', () => {
   it("a world's own mechanics are needed in most of its regular levels", () => {
     const hard = (r: { tierCounts: number[] }) => r.tierCounts[1] + r.tierCounts[2] + r.tierCounts[3];
     for (const w of WORLDS) {
-      const own = w.introduces.filter((m) => !['basic', 'counter', 'fog', 'gaps', 'blank'].includes(m));
+      const own = w.introduces.filter((m) => !['basic', 'counter', 'fog', 'gaps'].includes(m));
       if (!own.length) continue;
       const regular = w.levels.map((id) => levels.find((l) => l.id === id)!).filter((l) => !l.teach);
       let needed = 0;
@@ -184,39 +182,59 @@ describe('campaign.json', () => {
     }
   });
 
-  it('is human-solvable: few "aha" steps, scattered «Тишина», close islands, every cell pointed at', () => {
+  it('is human-solvable: few "aha" steps, every safe cell shows its clue, close islands, every cell pointed at', () => {
     WORLDS.forEach((w, wi) => {
       const last = wi === WORLDS.length - 1;
       for (const id of w.levels) {
         const l = levels.find((x) => x.id === id)!;
         const r = solveDetailed(l, { trace: true });
         const aha = ahaSteps(r);
-        const max = l.teach ? (w.n <= 3 ? 0 : 2) : w.n <= 3 ? 0 : w.n <= 8 ? 4 : last ? 14 : 7;
+        const max = l.teach ? (w.n <= 3 ? 0 : 2) : w.n <= 3 ? 0 : w.n <= 7 ? 4 : last ? 14 : 7;
         expect(ahaCells(r), id).toBeLessThanOrEqual(max);
         if (w.n > 3) expect(hardRun(r), id).toBeLessThanOrEqual(l.teach ? 2 : 3);
         if (!last) for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, id).toBe(true);
         else expect(deepCells(r), id).toBeLessThanOrEqual(4);
         const b = buildBoard(l);
-        const safe = l.cells.filter((c) => !c.gem).length;
-        const blank = l.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
-        if (!l.teach) expect(blank.length, id).toBeLessThanOrEqual(Math.round(safe * 0.11) + 1);
-        for (const i of blank) expect(b.phases[0].adj[i].filter((j) => l.cells[j].clue?.k === 'blank').length, id).toBeLessThanOrEqual(1);
+        expect(l.cells.some((c) => c.clue?.k === 'blank'), id).toBe(false);
         // every cell is covered by some informative clue, zone or link
         const covered = new Set<number>();
         l.cells.forEach((_, i) => cellConstraintsAll(b, i).forEach((c) => c.cells.forEach((j) => covered.add(j))));
         for (const z of l.zones ?? []) z.cells.forEach((j) => covered.add(j));
         for (const k of l.links ?? []) (covered.add(k.a), covered.add(k.b));
         l.cells.forEach((c, i) => { if (!c.start && !c.lock) expect(covered.has(i), `${id} cell ${i}`).toBe(true); }); // locks open by themselves
-        // islands at most 2 empty hexes apart
+        // islands 1–3 empty hexes apart
         const hexes = l.cells.flatMap((c) => [[c.q, c.r] as [number, number], ...(c.extra ?? [])]);
         const comps = islandsOf(hexes);
         for (let a = 1; a < comps.length; a++) {
           let m = Infinity;
           for (const [q1, r1] of comps[a]) for (let bI = 0; bI < comps.length; bI++) if (bI !== a) for (const [q2, r2] of comps[bI]) m = Math.min(m, (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2);
-          expect(m, id).toBeLessThanOrEqual(2);
+          expect(m, id).toBeGreaterThanOrEqual(2);
+          expect(m, id).toBeLessThanOrEqual(4);
         }
       }
     });
+  });
+});
+
+describe('campaign style (like the original game)', () => {
+  const CUT = ['chain', 'island', 'parity', 'swirl', 'eye', 'blank'];
+  it('uses only the kept mechanics', () => {
+    for (const l of levels) {
+      for (const c of l.cells) {
+        expect(CUT.includes(c.clue?.k ?? 'num'), l.id).toBe(false);
+        expect(c.clue?.mod, l.id).toBeUndefined();
+        expect(c.extra ?? c.alt, l.id).toBeUndefined();
+        if (c.gem) expect(c.clue, l.id).toBeUndefined();
+      }
+      expect(l.links ?? [], l.id).toHaveLength(0);
+      expect(l.portals ?? [], l.id).toHaveLength(0);
+    }
+  });
+  it('most boards from world 2 on are archipelagos of several islands', () => {
+    const later = levels.filter((l) => !l.id.startsWith('w01') && !l.teach);
+    const multi = later.filter((l) => islandsOf(l.cells.map((c) => [c.q, c.r] as [number, number])).length >= 2);
+    expect(multi.length / later.length).toBeGreaterThanOrEqual(0.5);
+    for (const l of multi) for (const c of islandsOf(l.cells.map((x) => [x.q, x.r] as [number, number]))) expect(c.length, l.id).toBeGreaterThanOrEqual(5);
   });
 });
 

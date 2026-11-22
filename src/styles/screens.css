@@ -97,7 +97,7 @@
 .w-stars svg {
   width: 10px;
   height: 10px;
-  color: var(--lume);
+  color: var(--star);
 }
 
 .w-chev {
@@ -159,7 +159,7 @@
 }
 
 .stars-pill svg {
-  color: var(--lume);
+  color: var(--star);
 }
 
 .world.locked .w-title {
@@ -236,7 +236,7 @@
 /* the level to play next: the light's ring */
 .lvl.current .lh-face {
   fill: var(--lit-face);
-  stroke: var(--lume);
+  stroke: var(--lit-line);
   stroke-width: 1.6;
 }
 
@@ -1025,7 +1025,7 @@
   padding: 7px 12px;
   border-radius: 8px;
   background: var(--cta);
-  color: var(--lume-ink);
+  color: var(--cta-ink);
   font-weight: 650;
 }
 
@@ -1063,4 +1063,56 @@
   height: 36px;
   flex: none;
   overflow: visible;
+}
+
+/* ---------------------------------------------------------------- v4 «Утро»: settings as white cards */
+:root:not([data-theme='dark']) .sgroup {
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  padding: 2px 16px;
+}
+
+:root:not([data-theme='dark']) .sgroup:last-of-type {
+  border-bottom: none;
+}
+
+:root:not([data-theme='dark']) .sgroup .seg {
+  background: var(--surface-2);
+}
+
+:root:not([data-theme='dark']) .toggle.on {
+  background: var(--cta);
+}
+
+:root:not([data-theme='dark']) .toggle.on .knob {
+  background: #ffffff;
+}
+
+:root:not([data-theme='dark']) .slider::-webkit-slider-runnable-track {
+  background: linear-gradient(var(--cta), var(--cta)) 0 / var(--v) 100% no-repeat, var(--surface-3);
+}
+
+:root:not([data-theme='dark']) .slider::-moz-range-track {
+  background: linear-gradient(var(--cta), var(--cta)) 0 / var(--v) 100% no-repeat, var(--surface-3);
+}
+
+:root:not([data-theme='dark']) .slider::-webkit-slider-thumb {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(30, 36, 48, 0.25);
+}
+
+:root:not([data-theme='dark']) .o-card {
+  border-top: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  padding: 16px;
+}
+
+/* progress lines in the light theme: the indigo of the light */
+:root:not([data-theme='dark']) .w-bar i,
+:root:not([data-theme='dark']) .st-bar i {
+  background: var(--cta);
 }

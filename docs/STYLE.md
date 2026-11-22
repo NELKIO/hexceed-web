@@ -1,4 +1,31 @@
-# Hexlume — visual system v3 «Instrument»
+# Hexlume — visual system v4 «Утро» (current default)
+
+The graphite look felt oppressive. The game should feel light and relaxed,
+like a quiet morning: flat pastel tiles on an airy background, nothing heavy. v3 «Instrument»
+below stays as the optional dark theme («Ночь»). Our own palette — do NOT copy any other game's colours.
+
+- **Default theme: light «Утро».** Dark «Ночь» (v3) remains in settings.
+- Background `#E8EDF4` (cool mist) with a barely lighter centre; no lattice noise behind the board.
+- Cells are **flat** (no gradients, no glows except the light), corner radius ~0.1 of the hex, a 1.5px
+  darker lower edge for a hint of depth, 3px gaps.
+  - unavailable (whole map silhouette, can't be opened yet): `#CBD3DF`, no border, no content;
+  - available hidden (referenced by an open clue): `#FFFFFF` with `#D5DCE6` hairline;
+  - opened: `#DDEFE6` (soft mint) with ink numbers `#1E2430`, weight 700;
+  - lit (огонёк): deep indigo tile `#3A43A8` with a small warm core `#FFC66B` + thin `#FFE3A8` ring,
+    soft halo only on the tile itself. The one saturated thing on the board.
+- Clue accents (outline/glyph on opened tiles): line arrows coral `#E0645A`; radius/ring/donut teal
+  `#1FA39A` rings; cone/triangle violet `#7A5CE0`; dot slate `#5B6B85`; lock slate with count;
+  zone dashed indigo `#5964D9` with a white count badge; rotating cells a small circular badge.
+- Walls: `#2A2F3A`, 4px, round caps.
+- Chrome: light and flat — white cards with 14px radius and a soft 0 2px 8px rgba(30,36,48,.06)
+  shadow; the counter is a white card top-left with the light icon and a big number; tools are flat
+  white round-square buttons; primary CTA indigo `#3A43A8` with white text.
+- Type: Onest (UI and numbers, tabular), JetBrains Mono only for small digits/codes.
+- Motion: soft and short; reveal = quick fade from white to mint; light = core blooms in 200ms.
+
+# Dark theme «Ночь» — visual system v3 «Instrument»
+
+The following is the historical v3 spec. Where it describes defaults, campaign counts, or fog, the v4 rules above take precedence.
 
 The game is a precise logic instrument with one warm source of light. Adult, calm and confident,
 pleasant without being childish. References in spirit: a well-made watch face, a night

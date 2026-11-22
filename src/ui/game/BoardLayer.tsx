@@ -75,44 +75,6 @@ function Walls({ d, dim }: { d: string; dim?: string }) {
   );
 }
 
-/**
- * Fog as one quiet silhouette per fog region: only the region's outline is drawn (edges towards a
- * gap, the board edge or a cell in sight). Edges between two fog hexes are left out, so the region
- * reads as one shape, not a grid of dotted cells.
- */
-function FogSilhouette({ layout, cells }: { layout: Layout; cells: CellProps[] }) {
-  const key = cells.map((c) => (c.fog ? '1' : '0')).join('');
-  const d = useMemo(() => {
-    let out = '';
-    for (const c of cells) {
-      if (!c.fog) continue;
-      for (const [q, r] of layout.hexes[c.i] ?? []) {
-        const [x, y] = toPixel(q, r, S);
-        for (let k = 0; k < 6; k++) {
-          const nb = layout.hexUnit.get(`${q + DIRS[k][0]},${r + DIRS[k][1]}`);
-          if (nb !== undefined && (nb === c.i || cells[nb]?.fog)) continue; // inside the region: no line
-          const [a, b] = edgeSegment(x, y, k, S * 0.97);
-          out += `M${a[0].toFixed(1)},${a[1].toFixed(1)}L${b[0].toFixed(1)},${b[1].toFixed(1)}`;
-        }
-      }
-    }
-    return out;
-  }, [layout, key]);
-  if (!d) return null;
-  return <path class="fog-edge" d={d} />;
-}
-
-/** Split walls into "in sight" and "deep in the fog" (both sides fogged or missing). */
-function splitWalls(segs: WallSeg[], cells: CellProps[]): [string, string] {
-  let vis = '', dim = '';
-  const fogged = (u: number) => u < 0 || !!cells[u]?.fog;
-  for (const w of segs) {
-    if (fogged(w.a) && fogged(w.b)) dim += w.d;
-    else vis += w.d;
-  }
-  return [vis, dim];
-}
-
 /** Portal flags: a glowing arc on the edge, and a faint dashed bridge to the partner across the gap. */
 function Portals({ board, layout, portals }: { board: Board; layout: Layout; portals: [number, number, number][] }) {
   const geo = useMemo(() => {
@@ -295,10 +257,9 @@ export function BoardLayer(p: BoardLayerProps) {
           <Cell key={c.i} {...c} />
         ))}
       </g>
-      <FogSilhouette layout={layout} cells={p.cells} />
       <Halos cells={p.cells} wave={p.glowWave ?? null} />
-      {/* walls with fog on both sides are not drawn: they would float in empty space */}
-      {p.wallSegs ? <Walls d={splitWalls(p.wallSegs, p.cells)[0]} /> : <Walls d={p.staticWalls} />}
+      {/* the whole map is visible: every wall at full strength */}
+      {p.wallSegs ? <Walls d={p.wallSegs.map((w) => w.d).join('')} /> : <Walls d={p.staticWalls} />}
       <Portals board={p.board} layout={layout} portals={p.portals} />
       <Zones board={p.board} layout={layout} values={p.zoneValues} done={p.zoneDone} />
       <Links board={p.board} layout={layout} done={p.linkDone} cells={p.cells} />

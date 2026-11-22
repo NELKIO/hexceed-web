@@ -168,7 +168,8 @@ export function EdgeHover({ edge }: { edge: [number, number, number] | null }) {
 
 // ------------------------------------------------------------------ pickers
 
-export const CLUE_KINDS: ClueKind[] = ['num', 'line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'swirl', 'island', 'chain', 'eye', 'parity', 'blank'];
+/** Clue kinds the editor offers (swirl, island, chain, eye, parity and blank were cut). */
+export const CLUE_KINDS: ClueKind[] = ['num', 'line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot'];
 export const DIR_KINDS = new Set<ClueKind>(['line', 'cone', 'triangle', 'dot', 'swirl']);
 
 /** A one-hex picture of a clue kind, drawn with the board's own glyph. */

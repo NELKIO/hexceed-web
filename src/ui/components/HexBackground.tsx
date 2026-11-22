@@ -34,7 +34,7 @@ export function HexBackground({ size = 34 }: { size?: number }) {
         line: v('--lattice', 'rgba(255,255,255,0.055)'),
         lume: v('--lume', '#f4c77a'),
         core: v('--lume-core', '#fff4dc'),
-        dark: document.documentElement.dataset.theme !== 'light',
+        dark: document.documentElement.dataset.theme === 'dark',
       };
     };
 

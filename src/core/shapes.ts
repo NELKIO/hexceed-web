@@ -323,7 +323,8 @@ export function columns(coords: [number, number][]): number {
 /** A board outline of about `size` hexes, aspect ratio (width / height) 0.6..1.2, portrait-friendly. */
 export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [number, number][]; shape: ShapeId } {
   const gaps = o.gaps || !!o.islands;
-  const pool = SHAPES.filter((s) => s.minSize <= size && (gaps || !s.gaps) && (!o.islands || s.multi || !s.gaps) && (!o.simple || SIMPLE.includes(s.id)));
+  let pool = SHAPES.filter((s) => s.minSize <= size && (gaps || !s.gaps) && (!o.islands || s.multi || !s.gaps) && (!o.simple || SIMPLE.includes(s.id)));
+  if (!pool.length) pool = [SHAPES[0]];
   for (let tries = 0; tries < 14; tries++) {
     let def: ShapeDef | undefined = tries < 3 && o.want ? SHAPES.find((s) => s.id === o.want) : undefined;
     if (!def) {
@@ -468,3 +469,113 @@ export function carveHoles(rng: Rng, coords: [number, number][]): [number, numbe
   return [...set.values()];
 }
 
+
+const hexDist = (q1: number, r1: number, q2: number, r2: number) => (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2;
+
+function minDist(a: [number, number][], b: [number, number][]): number {
+  let m = Infinity;
+  for (const [q1, r1] of a) for (const [q2, r2] of b) {
+    const d = hexDist(q1, r1, q2, r2);
+    if (d < m) m = d;
+  }
+  return m;
+}
+
+/**
+ * Several separate islands (like the original game's boards): `count` pieces of roughly equal size,
+ * each a small symmetric outline, 1–2 empty hexes apart, packed loosely into a portrait-friendly
+ * box (width / height ~0.6–1.0, at most `maxCols` columns). Even counts are often mirror-symmetric.
+ */
+export function makeArchipelago(rng: Rng, size: number, count: number, maxCols = 9): [number, number][] {
+  // try a few layouts (mirror left/right, top/bottom, free) and keep the best-fitting one
+  let best: [number, number][] = [];
+  let bestScore = Infinity;
+  const k = Math.max(2, Math.min(6, count));
+  for (const mode of rng.shuffle(['x', 'y', 'free', 'x', 'free'] as const)) {
+    const c = archipelagoTry(rng, size, k, maxCols, mode);
+    const pieces = components(c).length;
+    const sc = Math.abs(pieces - k) * 3 + Math.abs(aspect(c) - 0.8) * 2 + Math.abs(c.length - size) / size + (columns(c) > maxCols ? 4 : 0) + (mode === 'free' ? 0.15 : 0);
+    if (c.length && sc < bestScore) {
+      best = c;
+      bestScore = sc;
+    }
+  }
+  return best;
+}
+
+function archipelagoTry(rng: Rng, size: number, k: number, maxCols: number, mode: 'x' | 'y' | 'free'): [number, number][] {
+  const sym = mode !== 'free';
+  const centre = sym && k % 2 === 1;
+  const pairs = sym ? Math.floor(k / 2) : 0;
+  const pieces = sym ? pairs + (centre ? 1 : 0) : k;
+  // sizes: equal shares with some variety (mirrored pieces count twice)
+  const share = size / k;
+  const sizes = Array.from({ length: pieces }, () => Math.max(7, Math.round(share * (0.7 + rng.next() * 0.6))));
+  const shapes = sizes.map((s) => makeShape(rng, s, { gaps: false, simple: s < 20, maxCols: Math.min(maxCols, 7) }).coords);
+  const centred = (c: [number, number][]): [number, number][] => {
+    // move the piece so that its middle hex sits at the origin
+    const mq = Math.round(c.reduce((a, [q]) => a + q, 0) / c.length);
+    const mr = Math.round(c.reduce((a, [, r]) => a + r, 0) / c.length);
+    return c.map(([q, r]) => [q - mq, r - mr] as [number, number]);
+  };
+  const placed: [number, number][][] = [];
+  const all = (): [number, number][] => placed.flat();
+  const score = (cells: [number, number][]) => {
+    const w = aspect(cells);
+    return Math.abs(w - 0.8) * 3 + (columns(cells) > maxCols ? 5 : 0) + cells.length * 0.0005 + rng.next() * 0.05;
+  };
+  // mirror axis: left/right, or top/bottom (portrait-friendly for two pieces)
+  const vertical = mode === 'y';
+  const mir = (q: number, r: number): [number, number] => (vertical ? [q, -r - q] : mirror(q, r));
+  const inHalf = (q: number, r: number) => (vertical ? r + q / 2 >= 1 : q >= 1);
+  const mirrorAll = (c: [number, number][]) => c.map(([q, r]) => mir(q, r));
+  let first = 0;
+  if (centre || !sym) {
+    placed.push(centred(shapes[0]));
+    first = 1;
+  }
+  for (let p = first; p < shapes.length; p++) {
+    const s = centred(shapes[p]);
+    let best: [number, number][] | null = null;
+    let bestScore = Infinity;
+    const R = 14;
+    for (let oq = -R; oq <= R; oq++)
+      for (let or = -R; or <= R; or++) {
+        const t = s.map(([q, r]) => [q + oq, r + or] as [number, number]);
+        if (sym && t.some(([q, r]) => !inHalf(q, r))) continue; // one half only; the mirror makes the other
+        if (columns([...all(), ...t, ...(sym ? mirrorAll(t) : [])]) > maxCols) continue;
+        const others = sym ? [...placed, ...placed.filter((_, i) => i >= first).map(mirrorAll)] : placed;
+        let ok = others.length === 0 && !sym;
+        if (!ok) {
+          let near = false, clash = false;
+          for (const o of others) {
+            const d = minDist(t, o);
+            if (d < 2) clash = true;
+            if (d <= 3) near = true;
+          }
+          if (sym && !others.length) near = minDist(t, mirrorAll(t)) <= 3;
+          if (sym) {
+            const dm = minDist(t, mirrorAll(t));
+            if (dm < 2) clash = true;
+          }
+          ok = near && !clash;
+        }
+        if (!ok) continue;
+        const cand = sym ? [...all(), ...t, ...mirrorAll([...placed.slice(first).flat(), ...t])] : [...all(), ...t];
+        const sc = score(cand);
+        if (sc < bestScore) {
+          bestScore = sc;
+          best = t;
+        }
+      }
+    if (best) placed.push(best);
+  }
+  const res = sym ? [...placed.flat(), ...placed.slice(first).flat().map(([q, r]) => mir(q, r))] : placed.flat();
+  const seen = new Set<string>();
+  return res.filter(([q, r]) => {
+    const k2 = key(q, r);
+    if (seen.has(k2)) return false;
+    seen.add(k2);
+    return true;
+  });
+}

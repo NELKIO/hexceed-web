@@ -1,89 +1,12 @@
 /* =====================================================================
-   Hexlume — visual system v3 «Instrument» (docs/STYLE.md)
-   One warm light is the only glowing colour; everything else is graphite, ink,
-   paper and hairlines. Dark «Ночь» is the default, light «Бумага» is optional.
-   Display/UI: Onest. Meta, counters, timers: JetBrains Mono.
+   Hexlume — visual systems (docs/STYLE.md)
+   v4 «Утро» (default, light): calm, flat, pastel and airy — mist ground, white and mint tiles,
+   one indigo-and-warm light. v3 «Ночь» (optional, dark): graphite and hairlines with one warm
+   light. Display/UI: Onest. Small digits and codes: JetBrains Mono.
    ===================================================================== */
 
-:root,
-:root[data-theme='dark'] {
-  /* ground */
-  --bg: #0b0c0f;
-  --bg-2: #111318;
-  --surface: #15171c;
-  --surface-2: #1b1e24;
-  --surface-3: #23272f;
-  --line: rgba(255, 255, 255, 0.075);
-  --line-strong: rgba(255, 255, 255, 0.14);
-  --scrim: rgba(3, 4, 6, 0.62);
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 24px 64px -24px rgba(0, 0, 0, 0.85);
-
-  /* ink */
-  --ink: #ecedef;
-  --ink-2: #a3a8b3;
-  --ink-3: #7d8390;
-
-  /* the light — lit cells, the counter value, the primary action, win moments */
-  --lume: #f4c77a;
-  --lume-core: #fff4dc;
-  --lume-glow: rgba(244, 199, 122, 0.35);
-  --lume-dim: rgba(244, 199, 122, 0.12);
-  --lume-ink: #1b1408;
-  --lume-text: #f4c77a;
-  /* the primary action: solid light, dark ink */
-  --cta: #f4c77a;
-
-  /* low-key UI accent (selection, focus, highlights, hint) and states */
-  --accent: #8fa8ff;
-  --accent-soft: rgba(143, 168, 255, 0.12);
-  --accent-ink: #0b0c0f;
-  --bad: #ff6b6b;
-  --bad-ink: #1a0b0b;
-  --good: #7fcfa6;
-
-  /* board */
-  --hid-top: #34383f;
-  --hid-bot: #2b2f37;
-  --hid-line: rgba(255, 255, 255, 0.09);
-  --hid-hi: rgba(255, 255, 255, 0.11);
-  --open-face: #131519;
-  --open-line: rgba(255, 255, 255, 0.035);
-  --num: #ecedef;
-  --num-done: #7d8390;
-  --glyph: #a3a8b3;
-  --glyph-fill: rgba(163, 168, 179, 0.16);
-  --lit-face: #1d1912;
-  --lit-line: rgba(244, 199, 122, 0.62);
-  --lit-num: #fbe3b4;
-  --lock-ink: #a3a8b3;
-  --fog: rgba(255, 255, 255, 0.07);
-  --wall: #d4d7de;
-  --zone: rgba(163, 168, 179, 0.7);
-  --zone-fill: rgba(143, 168, 255, 0.045);
-  --thread: #a3a8b3;
-  --portal: #8fa8ff;
-  --hl-0: #8fa8ff;
-  --hl-1: #7cc4b0;
-  --hl-2: #d79bb4;
-  --hl-3: #b9a4e6;
-  --hl-hover: #8fa8ff;
-  --hint: #8fa8ff;
-  --dust: #5b616d;
-
-  /* menu lattice */
-  --lattice: rgba(255, 255, 255, 0.055);
-
-  /* legacy names, kept so older inline styles resolve to the new palette */
-  --muted: var(--ink-3);
-  --dim: var(--ink-3);
-  --hair: var(--line);
-  --hair-2: var(--line-strong);
-  --violet: var(--accent);
-  --amber: var(--lume);
-
-  --radius: 12px;
-  --radius-sm: 8px;
+/* ---------------------------------------------------------------- shared constants */
+:root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -94,71 +17,208 @@
   --ease: cubic-bezier(0.2, 0.7, 0.1, 1);
   --ease-out: var(--ease);
   --ease-spring: var(--ease);
-  color-scheme: dark;
+
+  /* legacy names, kept so older inline styles resolve to the current palette */
+  --muted: var(--ink-3);
+  --dim: var(--ink-3);
+  --hair: var(--line);
+  --hair-2: var(--line-strong);
+  --violet: var(--accent);
+  --amber: var(--lume);
 }
 
+/* ---------------------------------------------------------------- v4 «Утро» (default) */
+:root,
 :root[data-theme='light'] {
-  --bg: #f4f2ed;
-  --bg-2: #faf9f6;
+  --bg: #e8edf4;
+  --bg-2: #f6f8fb;
   --surface: #ffffff;
-  --surface-2: #efece6;
-  --surface-3: #e5e1d9;
-  --line: rgba(20, 23, 28, 0.1);
-  --line-strong: rgba(20, 23, 28, 0.18);
-  --scrim: rgba(20, 23, 28, 0.16);
+  --surface-2: #f0f3f8;
+  --surface-3: #e2e8f0;
+  --line: rgba(30, 36, 48, 0.09);
+  --line-strong: rgba(30, 36, 48, 0.16);
+  --scrim: rgba(30, 36, 48, 0.2);
   --scrim-blur: blur(2px);
-  --shadow: 0 1px 2px rgba(20, 23, 28, 0.04), 0 10px 28px -18px rgba(20, 23, 28, 0.22);
-  --shadow-lg: 0 24px 60px -24px rgba(20, 23, 28, 0.3);
+  --shadow: 0 2px 8px rgba(30, 36, 48, 0.06);
+  --shadow-lg: 0 18px 48px -18px rgba(30, 36, 48, 0.28);
+  --card-shadow: 0 2px 8px rgba(30, 36, 48, 0.06);
 
-  --ink: #15171c;
-  --ink-2: #555b66;
-  --ink-3: #686d77;
+  --ink: #1e2430;
+  --ink-2: #4c5667;
+  --ink-3: #5e6878;
 
-  --lume: #c8891e;
-  --lume-core: #fff6e0;
-  --lume-glow: rgba(200, 137, 30, 0.22);
-  --lume-dim: rgba(200, 137, 30, 0.1);
-  --lume-ink: #15171c;
-  --lume-text: #8f5f0c;
-  --cta: #e2b45e;
+  /* the light: a warm core on an indigo tile */
+  --lume: #ffc66b;
+  --lume-core: #fff3d6;
+  --lume-ring: #ffe3a8;
+  --lume-glow: rgba(255, 198, 107, 0.4);
+  --lume-dim: rgba(58, 67, 168, 0.08);
+  --lume-ink: #ffffff;
+  --lume-text: #1e2430;
+  --star: #3a43a8;
+  --pi-ring: #3a43a8;
+  --pi-core-edge: 1.2;
+  /* the primary action: indigo with white text */
+  --cta: #3a43a8;
+  --cta-ink: #ffffff;
 
-  --accent: #4a63d6;
-  --accent-soft: rgba(74, 99, 214, 0.09);
+  --accent: #5964d9;
+  --accent-soft: rgba(89, 100, 217, 0.1);
   --accent-ink: #ffffff;
-  --bad: #c93c3c;
+  --bad: #d4483f;
   --bad-ink: #ffffff;
-  --good: #2f8f62;
+  --good: #1f8a6b;
 
-  --hid-top: #e2ded6;
-  --hid-bot: #d8d3c9;
-  --hid-line: rgba(20, 23, 28, 0.1);
-  --hid-hi: rgba(255, 255, 255, 0.65);
-  --open-face: #fcfbf8;
-  --open-line: rgba(20, 23, 28, 0.06);
-  --num: #15171c;
-  --num-done: #6c717b;
-  --glyph: #555b66;
-  --glyph-fill: rgba(85, 91, 102, 0.12);
-  --lit-face: #fbf0d8;
-  --lit-line: #c8891e;
-  --lit-num: #5c3d06;
-  --lock-ink: #4a505a;
-  --fog: rgba(20, 23, 28, 0.09);
-  --wall: #22252b;
-  --zone: rgba(85, 91, 102, 0.75);
-  --zone-fill: rgba(74, 99, 214, 0.045);
-  --thread: #555b66;
-  --portal: #4a63d6;
-  --hl-0: #4a63d6;
-  --hl-1: #2f8a74;
-  --hl-2: #b5587f;
-  --hl-3: #7c62c4;
-  --hl-hover: #4a63d6;
-  --hint: #4a63d6;
-  --dust: #b7b2a8;
+  /* chrome: white flat cards */
+  --chrome-bg: #ffffff;
+  --chrome-shadow: 0 2px 8px rgba(30, 36, 48, 0.06);
+  --radius: 14px;
+  --radius-sm: 10px;
 
-  --lattice: rgba(20, 23, 28, 0.06);
+  /* board: flat pastel tiles */
+  --cell-off: #cbd3df;
+  --hid-top: #ffffff;
+  --hid-bot: #ffffff;
+  --hid-line: #d5dce6;
+  --hid-hi: rgba(255, 255, 255, 0);
+  --hid-edge: #cdd5e1;
+  --open-face: #ddefe6;
+  --open-line: rgba(30, 36, 48, 0);
+  --open-edge: #c3ddd0;
+  --num: #1e2430;
+  --num-weight: 700;
+  --num-done: #56606e;
+  --glyph: #5b6b85;
+  --glyph-fill: rgba(31, 163, 154, 0.14);
+  --g-line: #e0645a;
+  --g-area: #1fa39a;
+  --g-area-fill: rgba(31, 163, 154, 0.14);
+  --g-cone: #7a5ce0;
+  --g-dot: #5b6b85;
+  --lit-face: #3a43a8;
+  --lit-line: #3a43a8;
+  --lit-edge: #2b3285;
+  --lit-num: #ffe3a8;
+  --lock-ink: #5b6b85;
+  --fog: rgba(30, 36, 48, 0);
+  --wall: #2a2f3a;
+  --wall-w: 4px;
+  --wall-cap: round;
+  --wall-cut: transparent;
+  --zone: #5964d9;
+  --zone-fill: rgba(89, 100, 217, 0.06);
+  --zone-badge: #ffffff;
+  --thread: #5b6b85;
+  --portal: #5964d9;
+  --hl-0: #5964d9;
+  --hl-1: #1fa39a;
+  --hl-2: #d0607a;
+  --hl-3: #7a5ce0;
+  --hl-hover: #5964d9;
+  --hint: #5964d9;
+  --hint-ring: #f0a43a;
+  --halo-opacity: 0;
+  --aura-opacity: 0.55;
+  --dust: #b3bccb;
+
+  /* menu lattice */
+  --lattice: rgba(30, 36, 48, 0.045);
   color-scheme: light;
+}
+
+/* ---------------------------------------------------------------- v3 «Ночь» (dark) */
+:root[data-theme='dark'] {
+  --bg: #0b0c0f;
+  --bg-2: #111318;
+  --surface: #15171c;
+  --surface-2: #1b1e24;
+  --surface-3: #23272f;
+  --line: rgba(255, 255, 255, 0.075);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --scrim: rgba(3, 4, 6, 0.62);
+  --scrim-blur: none;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 24px 64px -24px rgba(0, 0, 0, 0.85);
+  --card-shadow: none;
+
+  --ink: #ecedef;
+  --ink-2: #a3a8b3;
+  --ink-3: #7d8390;
+
+  /* the light — lit cells, the counter value, the primary action, win moments */
+  --lume: #f4c77a;
+  --lume-core: #fff4dc;
+  --lume-ring: #f4c77a;
+  --lume-glow: rgba(244, 199, 122, 0.35);
+  --lume-dim: rgba(244, 199, 122, 0.12);
+  --lume-ink: #1b1408;
+  --lume-text: #f4c77a;
+  --star: #f4c77a;
+  --pi-ring: #f4c77a;
+  --pi-core-edge: 0;
+  --cta: #f4c77a;
+  --cta-ink: #1b1408;
+
+  --accent: #8fa8ff;
+  --accent-soft: rgba(143, 168, 255, 0.12);
+  --accent-ink: #0b0c0f;
+  --bad: #ff6b6b;
+  --bad-ink: #1a0b0b;
+  --good: #7fcfa6;
+
+  --chrome-bg: transparent;
+  --chrome-shadow: none;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* board */
+  --cell-off: #191c22;
+  --hid-top: #34383f;
+  --hid-bot: #2b2f37;
+  --hid-line: rgba(255, 255, 255, 0.09);
+  --hid-hi: rgba(255, 255, 255, 0.11);
+  --hid-edge: transparent;
+  --open-face: #131519;
+  --open-line: rgba(255, 255, 255, 0.035);
+  --open-edge: transparent;
+  --num: #ecedef;
+  --num-weight: 600;
+  --num-done: #7d8390;
+  --glyph: #a3a8b3;
+  --glyph-fill: rgba(163, 168, 179, 0.16);
+  --g-line: var(--glyph);
+  --g-area: var(--glyph);
+  --g-area-fill: rgba(163, 168, 179, 0.16);
+  --g-cone: var(--glyph);
+  --g-dot: var(--glyph);
+  --lit-face: #1d1912;
+  --lit-line: rgba(244, 199, 122, 0.62);
+  --lit-edge: transparent;
+  --lit-num: #fbe3b4;
+  --lock-ink: #a3a8b3;
+  --fog: rgba(255, 255, 255, 0.07);
+  --wall: #d4d7de;
+  --wall-w: 4.6px;
+  --wall-cap: square;
+  --wall-cut: var(--bg);
+  --zone: rgba(163, 168, 179, 0.7);
+  --zone-fill: rgba(143, 168, 255, 0.045);
+  --zone-badge: var(--bg-2);
+  --thread: #a3a8b3;
+  --portal: #8fa8ff;
+  --hl-0: #8fa8ff;
+  --hl-1: #7cc4b0;
+  --hl-2: #d79bb4;
+  --hl-3: #b9a4e6;
+  --hl-hover: #8fa8ff;
+  --hint: #8fa8ff;
+  --hint-ring: var(--lume);
+  --halo-opacity: 1;
+  --aura-opacity: 1;
+  --dust: #5b616d;
+
+  --lattice: rgba(255, 255, 255, 0.055);
+  color-scheme: dark;
 }
 
 * {
@@ -411,7 +471,7 @@ h3 {
 .btn.cta {
   background: var(--cta);
   border-color: transparent;
-  color: var(--lume-ink);
+  color: var(--cta-ink);
   font-weight: 650;
 }
 
@@ -600,11 +660,11 @@ h3 {
   transition: transform 0.22s var(--ease);
 }
 
-:root[data-theme='light'] .seg {
+:root:not([data-theme='dark']) .seg {
   background: var(--surface-2);
 }
 
-:root[data-theme='light'] .seg-thumb {
+:root:not([data-theme='dark']) .seg-thumb {
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(20, 23, 28, 0.06);
 }
@@ -730,8 +790,8 @@ h3 {
 }
 
 .star.on .sx {
-  fill: var(--lume);
-  stroke: var(--lume);
+  fill: var(--star);
+  stroke: var(--star);
 }
 
 .stars.fly {
@@ -821,10 +881,52 @@ h3 {
 /* the light as a UI icon (counter, mode switch, stats…) */
 .piece-ic .pi-ring {
   fill: none;
-  stroke: var(--lume);
-  stroke-width: 1.5;
+  stroke: var(--pi-ring);
+  stroke-width: 1.7;
 }
 
 .piece-ic .pi-core {
   fill: var(--lume);
+  stroke: var(--pi-ring);
+  stroke-width: var(--pi-core-edge);
+}
+
+/* ---------------------------------------------------------------- v4 «Утро»: flat white cards
+   Chrome and cards are white with a soft shadow instead of hairlines (the dark theme keeps its
+   hairline look through the same tokens: --chrome-bg transparent, --card-shadow none). */
+:root:not([data-theme='dark']) .icon-btn {
+  background: var(--chrome-bg);
+  box-shadow: var(--chrome-shadow);
+  border-radius: 14px;
+}
+
+:root:not([data-theme='dark']) .icon-btn:hover {
+  background: var(--surface-2);
+}
+
+:root:not([data-theme='dark']) .btn {
+  border-color: transparent;
+  box-shadow: var(--card-shadow);
+}
+
+:root:not([data-theme='dark']) .btn.ghost {
+  background: var(--surface);
+  border-color: transparent;
+}
+
+:root:not([data-theme='dark']) .btn.cta {
+  box-shadow: 0 6px 16px -8px rgba(58, 67, 168, 0.55);
+}
+
+:root:not([data-theme='dark']) .sheet {
+  border-color: transparent;
+}
+
+:root:not([data-theme='dark']) .seg {
+  border-color: transparent;
+}
+
+:root:not([data-theme='dark']) .pill {
+  border-color: transparent;
+  box-shadow: var(--card-shadow);
 }

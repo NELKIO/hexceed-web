@@ -293,6 +293,7 @@ export function ClueGlyph({ clue, value, rotDeg = 0, onGem }: { clue: LooseClue 
 function HiddenTile({ locked, lockN, tile }: { locked: boolean; lockN: number; tile: string }) {
   return (
     <>
+      <path class="t-base" d={tile} transform="translate(0 1.6)" />
       <path class="t-face" d={tile} />
       <path class="t-hi" d={tile} />
       {locked && <LockGlyph n={lockN} />}
@@ -362,6 +363,7 @@ function Face(p: CellProps) {
       <>
         {ghost}
         <g class={`face gem e-${e}`} style={style}>
+          <path class="t-base" d={tile} transform="translate(0 1.6)" />
           <path class="t-face" d={tile} />
           {gc ? (
             <g class={p.done ? 'clue done' : 'clue'} key={p.glyphKey}>
@@ -382,6 +384,7 @@ function Face(p: CellProps) {
     <>
       {ghost}
       <g class={`face open e-${enter}`} style={style}>
+        <path class="t-base" d={tile} transform="translate(0 1.6)" />
         <path class="t-face" d={tile} />
         <g class={(p.done ? 'clue done' : 'clue') + (p.switching ? ' morph' : '')} key={p.glyphKey}>
           <ClueGlyph clue={p.clue} value={p.value} rotDeg={p.rotDeg} />

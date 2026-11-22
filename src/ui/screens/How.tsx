@@ -10,7 +10,7 @@ import { GameBoard, type BoardHandle, type Target } from '../game/Board';
 import { layoutBoard } from '../game/geometry';
 import { cellProps, newFx, precompute } from '../game/view';
 import { buildSample } from '../../levels/samples';
-import { MECH_ORDER, mechTitle } from '../mechanics';
+import { MECH_SHOWN, mechTitle } from '../mechanics';
 import { MechIcon } from '../components/MechIcon';
 import { loadSeen } from '../../storage';
 import { Explainer } from '../game/Explainer';
@@ -125,7 +125,7 @@ function TryBoard() {
 export function HowScreen() {
   useSettings();
   const [mech, setMech] = useState<MechanicId | null>(null);
-  const list = MECH_ORDER;
+  const list = MECH_SHOWN;
   // mechanics the player has not met yet stay locked (the basics are always open)
   const seen = new Set<string>([...loadSeen(), 'basic', 'counter', 'fog']);
   const locked = list.filter((m) => !seen.has(m));

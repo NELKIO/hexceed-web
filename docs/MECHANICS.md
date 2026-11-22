@@ -1,4 +1,7 @@
-# Mechanics — exact semantics (v2)
+# Mechanics — level-format semantics
+
+This is the full format, including legacy clues still supported when opening older workshop links.
+New generated levels use the smaller set listed in the README.
 
 Notation: flat-top axial hexes, `e_d` = step in edge direction d (0 N, 1 NE, 2 SE, 3 S, 4 SW, 5 NW;
 clockwise). A *cell* (unit) is one hex, or a **big cell** made of several hexes. All counts are
@@ -15,7 +18,7 @@ hexes fall in an area. "Walls respected" = a wall on the crossed edge stops / dr
 | big cell | `cell.extra: [q,r][]` | extra hexes of the same unit. Neighbours of a big cell = all hexes adjacent to any of its hexes (walls respected), mapped to units, minus itself. Only `num` or no clue. |
 | start | `cell.start` | safe, revealed at start. Usually exactly one per level (sometimes 2–3 on early/big levels). |
 | lock (gate) | `cell.lock = N` | safe, visible from start with a counter `N − marked lights`; opens by itself (becomes a revealed cell with its clue) when marked ≥ N. |
-| fog | `level.fog` (default true) | hidden cells that no visible information refers to are fogged: drawn as faint silhouettes, not clickable. Visible = start ∪ locks ∪ revealed ∪ marked ∪ cells covered by any revealed clue (any phase) ∪ zone/link cells. Fog never hides lights' existence from the counter. Generator guarantees every cell becomes visible. |
+| availability | `level.fog` (default true; legacy key) | all hexes and walls are drawn from the start. When enabled, the player can act only on cells covered by an open clue (in any phase) or by a zone/link. Start, opened, marked and locked cells are also visible to the rules; locks open by their own rule. The global counter includes every light but does not itself make any cell available. |
 | phase | global integer `t` | increases by 1 when the player presses Rotate (or the optional timer fires). Only matters when the level has rotating / switching cells. Period = lcm of all cycle lengths (≤ 6). |
 | rotating cell | `cell.rot: number[]` | list of orientation offsets it stops at, cycled with the phase: offset = `rot[t % rot.length]`. Its walls, portals and clue directions are all rotated by `offset` (dir → dir+offset). Neighbouring cells' clues that are affected by the moved walls change value too. |
 | switching cell | `cell.alt: Clue[]` | clue cycles with the phase: `[clue, ...alt][t % (1+alt.length)]`. |

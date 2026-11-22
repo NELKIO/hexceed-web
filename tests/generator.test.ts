@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ahaCells, ahaSteps, dailyLevel, endlessLevel, GEN_VERSION, generateLevel, hardRun, SHAPE_IDS, teachOK } from '../src/core/generator';
 import { buildBoard } from '../src/core/rules';
+import { components, enclosedHoles } from '../src/core/shapes';
 import { solveDetailed, solveLevel } from '../src/core/solver';
 import type { Level, MechanicId } from '../src/core/types';
 
-const BASE: MechanicId[] = ['basic', 'counter', 'fog', 'blank'];
+const BASE: MechanicId[] = ['basic', 'counter', 'fog'];
 
 function aspect(L: Level): number {
   const hexes = L.cells.flatMap((c) => [[c.q, c.r], ...(c.extra ?? [])]);
@@ -61,18 +62,13 @@ describe('generator', () => {
     expect(JSON.stringify(generateLevel({ ...o, seed: 'det2' }))).not.toBe(JSON.stringify(generateLevel(o)));
   });
 
-  const MECHS: MechanicId[] = [
-    'walls', 'gaps', 'line', 'multiline', 'radius', 'ring', 'donut', 'cone', 'triangle', 'lock', 'gemclue', 'dot', 'swirl',
-    'rotate', 'switch', 'big', 'portal', 'island', 'chain', 'together', 'apart', 'eye', 'parity', 'link', 'zone',
-  ];
+  // the mechanics the game generates (chain, island, parity, swirl, eye, together/apart, link, big cells,
+  // portals, switching cells, gem clues and «Тишина» were cut)
+  const MECHS: MechanicId[] = ['walls', 'gaps', 'line', 'multiline', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'lock', 'rotate', 'zone'];
   const NEEDS: Partial<Record<MechanicId, MechanicId[]>> = {
     multiline: ['line'],
     gaps: ['line'],
-    portal: ['gaps', 'line'],
     rotate: ['walls', 'line'],
-    switch: ['line', 'radius'],
-    island: ['walls'],
-    swirl: ['walls'],
   };
   for (const m of MECHS)
     it(`produces solvable levels with ${m}`, () => {
@@ -89,7 +85,7 @@ describe('generator', () => {
     });
 
   it('teaching levels need the taught mechanic', () => {
-    for (const m of ['ring', 'zone', 'together', 'swirl'] as MechanicId[]) {
+    for (const m of ['ring', 'zone', 'dot', 'cone'] as MechanicId[]) {
       const mechanics: MechanicId[] = [...BASE, m, ...(NEEDS[m] ?? [])];
       const L = generateLevel({ seed: `teach-${m}`, size: 20, mechanics, targetDifficulty: 2, teach: [m] });
       expect(L.teach).toEqual([m]);
@@ -133,7 +129,7 @@ describe('generator', () => {
   });
 
   it('endless enforces the rating of each mode; easy is numbers and walls', () => {
-    const range = { easy: [1, 2], medium: [3, 5], hard: [6, 10], expert: [7, 10] } as const;
+    const range = { easy: [1, 2], medium: [3, 5], hard: [5, 10], expert: [6, 10] } as const; // no «Тишина» any more: the top modes rate a little lower
     for (const d of ['easy', 'medium', 'hard', 'expert'] as const)
       for (const seed of [1, 2]) {
         const L = endlessLevel(seed, d);
@@ -143,6 +139,14 @@ describe('generator', () => {
         if (d === 'easy') for (const c of L.cells) expect([undefined, 'num']).toContain(c.clue?.k);
       }
     expect(JSON.stringify(endlessLevel(3, 'hard'))).toBe(JSON.stringify(endlessLevel(3, 'hard')));
+  });
+
+  it('hard endless does not split a board when gaps are excluded', () => {
+    const L = endlessLevel(2, 'hard', BASE);
+    const coords = L.cells.map((c): [number, number] => [c.q, c.r]);
+    expect(components(coords)).toHaveLength(1);
+    expect(enclosedHoles(coords)).toBe(0);
+    expect(solveLevel(L).solved).toBe(true);
   });
 
   it('daily can be restricted to unlocked mechanics', () => {
@@ -157,20 +161,29 @@ describe('generator', () => {
     expect(dailyLevel('2026-12-24').diff!).toBeGreaterThanOrEqual(3);
   });
 
-  it('daily and easy endless stay human-solvable; «Тишина» is rare and scattered', () => {
+  it('daily and easy endless stay human-solvable without blank clues', () => {
     const check = (L: ReturnType<typeof dailyLevel>, maxAha: number) => {
       const r = solveDetailed(L, { trace: true });
       const aha = ahaSteps(r);
       expect(ahaCells(r), L.id).toBeLessThanOrEqual(maxAha);
       expect(hardRun(r), L.id).toBeLessThanOrEqual(3);
       for (const e of aha) expect(e.tier === 3 && e.reasons.length <= 3, L.id).toBe(true);
-      const b = buildBoard(L);
-      const blanks = L.cells.map((c, i) => (c.clue?.k === 'blank' ? i : -1)).filter((i) => i >= 0);
-      expect(blanks.length).toBeLessThanOrEqual(Math.round(L.cells.filter((c) => !c.gem).length * 0.11) + 1);
-      for (const i of blanks) expect(b.phases[0].adj[i].filter((j) => L.cells[j].clue?.k === 'blank').length).toBeLessThanOrEqual(1);
+      expect(L.cells.some((c) => c.clue?.k === 'blank'), L.id).toBe(false);
     };
     for (const d of ['2026-11-22', '2026-11-23', '2026-11-24']) check(dailyLevel(d), 4);
     expect(typeof GEN_VERSION).toBe('string');
     for (const s of [1, 2, 3]) check(endlessLevel(s, 'easy'), 0);
+  });
+
+  it('daily and endless never use cut mechanics', () => {
+    const cut = ['chain', 'island', 'parity', 'swirl', 'eye', 'blank'];
+    const levels = [dailyLevel('2026-12-01'), dailyLevel('2026-12-02'), endlessLevel(5, 'medium'), endlessLevel(5, 'hard'), endlessLevel(5, 'expert')];
+    for (const L of levels) {
+      for (const c of L.cells) {
+        expect(cut.includes(c.clue?.k ?? 'num'), L.id).toBe(false);
+        expect(c.clue?.mod ?? c.extra ?? c.alt, L.id).toBeUndefined();
+      }
+      expect((L.links ?? []).length + (L.portals ?? []).length, L.id).toBe(0);
+    }
   });
 });

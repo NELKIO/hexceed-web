@@ -4,6 +4,16 @@ import { solveLevel } from '../src/core/solver';
 import type { Clue, Level } from '../src/core/types';
 import { validateLevel } from '../src/core/validate';
 import { SAMPLES } from '../src/levels/samples';
+import { toggleGem } from '../src/ui/workshop/ops';
+
+it('the workshop Light tool does not create a light with a clue', () => {
+  const original: Level = { id: 'draft', walls: [], cells: [{ q: 0, r: 0, gem: false, clue: { k: 'ring' }, alt: [{ k: 'num' }] }] };
+  const light = toggleGem(original, 0)!.cells[0];
+  expect(light.gem).toBe(true);
+  expect(light.clue).toBeUndefined();
+  expect(light.alt).toBeUndefined();
+  expect(original.cells[0].clue).toEqual({ k: 'ring' });
+});
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 

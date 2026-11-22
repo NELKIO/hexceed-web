@@ -107,19 +107,6 @@ function focusBox(L: Layout, focus: Uint8Array | undefined, margin: boolean): Bo
   return { minX, minY, maxX, maxY };
 }
 
-/** Smallest comfortable hex circumradius (px) when the board is wider than the screen. */
-function minCellPx(): number {
-  try {
-    const coarse = matchMedia('(pointer: coarse)').matches;
-    if (coarse || Math.min(innerWidth, innerHeight) < 520) return 25;
-    // desktop: big boards get readable cells and scroll, instead of shrinking into a corner
-    if (innerWidth >= 900 && innerHeight >= 600) return 30;
-  } catch {
-    /* ignore */
-  }
-  return 22;
-}
-
 /** Bounding box of the "must see" cells (start / opened / locks), or null. */
 function mustBox(L: Layout, must: Uint8Array | undefined): Box | null {
   if (!must) return null;
@@ -169,14 +156,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     edgeHints();
   };
 
-  /**
-   * Camera framing.
-   * - Frames the cells in sight (+ one cell of margin), never larger than `maxCell`.
-   * - Portrait phones fit the WIDTH (hexes >= ~27 px) and scroll vertically; elsewhere both axes fit.
-   * - Hard rule for the initial framing: start / opened cells and locks (`must`) are fully on screen
-   *   (the zoom drops below the comfort minimum if that is the only way).
-   * - Later framings (fog lifting) keep the current spot unless the last move would be off screen.
-   */
+  /** Frame the whole map on both axes unless a caller requests a smaller focus area. */
   const computeFit = (initial = false) => {
     const el = wrap.current;
     if (!el) return null;
@@ -198,10 +178,9 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       B.maxX = B0.maxX + S * 0.15;
     }
     const bw = B.maxX - B.minX, bh = B.maxY - B.minY;
-    const kMin = Math.min(minCellPx(), maxCell) / S;
     const kW = (W - pad * 2) / bw, kH = (Hh - padY * 2) / bh;
-    let k = Math.min(portrait ? kW : Math.min(kW, kH), maxCell / S);
-    if (k < kMin) k = kMin;
+    // Let large boards start at overview scale. Pinch / wheel can enlarge small clues.
+    let k = Math.min(kW, kH, maxCell / S);
     const M = initial ? mustBox(L, pr.current.must) : null;
     if (M) {
       const km = Math.min((W - pad * 2) / (M.maxX - M.minX + 8), (Hh - padY * 2) / (M.maxY - M.minY + 8));

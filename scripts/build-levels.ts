@@ -46,7 +46,7 @@ interface WorldParams {
 }
 
 const PARAMS: WorldParams[] = [
-  // 1 First steps
+  // 1 First steps: tiny, numbers only
   {
     tutorials: [
       // tiny, no fog, solvable from the numbers alone (no counter tricks)
@@ -61,78 +61,31 @@ const PARAMS: WorldParams[] = [
     showcase: 31,
   },
   // 2 Walls & islands
-  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 26, target: 2 }], size: [28, 50], target: [2, 3], showcase: 52 },
+  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 24, target: 2, islands: true }], size: [28, 50], target: [2, 3], showcase: 52 },
   // 3 Rays
-  {
-    tutorials: [
-      { teach: ['line'], with: ['line'], size: 18, target: 2 },
-      { teach: ['multiline'], with: ['line', 'multiline'], size: 22, target: 2 },
-    ],
-    size: [36, 66],
-    target: [2, 4],
-    showcase: 75,
-  },
+  { tutorials: [{ teach: ['line'], with: ['line'], size: 18, target: 2 }, { teach: ['multiline'], with: ['line', 'multiline'], size: 22, target: 2 }], size: [36, 66], target: [2, 4], showcase: 75 },
   // 4 Circles
-  {
-    tutorials: [
-      { teach: ['radius'], with: ['radius', 'blank'], size: 18, target: 2 },
-      { teach: ['ring'], with: ['ring', 'blank'], size: 22, target: 2 },
-      { teach: ['donut'], with: ['donut', 'blank'], size: 26, target: 3 },
-    ],
-    size: [45, 85],
-    target: [3, 4],
-    showcase: 100,
-  },
-  // 5 Cones
-  { tutorials: [{ teach: ['cone'], with: ['cone', 'blank'], size: 20, target: 2 }, { teach: ['triangle'], with: ['triangle', 'blank'], size: 24, target: 3 }], size: [45, 85], target: [3, 5], showcase: 100 },
-  // 6 Locks
-  { tutorials: [{ teach: ['lock'], with: ['lock', 'blank'], size: 20, target: 2 }, { teach: ['gemclue'], with: ['gemclue', 'blank'], size: 24, target: 3 }], size: [48, 90], target: [3, 5], showcase: 102 },
-  // 7 Dots & swirls
-  { tutorials: [{ teach: ['dot'], with: ['dot', 'blank'], size: 20, target: 2 }, { teach: ['swirl'], with: ['swirl', 'walls', 'blank'], size: 24, target: 3 }], size: [50, 90], target: [4, 5], showcase: 104 },
-  // 8 Rotation
-  {
-    tutorials: [
-      { teach: ['rotate'], with: ['rotate', 'walls', 'line', 'blank'], size: 22, target: 3 },
-      { teach: ['switch'], with: ['switch', 'line', 'radius', 'blank'], size: 26, target: 3 },
-    ],
-    size: [50, 95],
-    target: [4, 6],
-    showcase: 104,
-  },
-  // 9 Big cells & portals
-  {
-    tutorials: [
-      { teach: ['big'], with: ['big', 'blank'], size: 24, target: 2 },
-      { teach: ['portal'], with: ['portal', 'gaps', 'line', 'blank'], size: 30, target: 3, islands: true },
-    ],
-    size: [52, 100],
-    target: [6, 7],
-    showcase: 106,
-  },
-  // 10 Island & chain
-  {
-    tutorials: [
-      { teach: ['island'], with: ['island', 'walls', 'gaps', 'blank'], size: 26, target: 3, islands: true },
-      { teach: ['chain'], with: ['chain', 'blank'], size: 26, target: 3 },
-    ],
-    size: [55, 100],
-    target: [6, 8],
-    showcase: 106,
-  },
-  // 11 Together & apart
-  { tutorials: [{ teach: ['together'], with: ['together', 'blank'], size: 22, target: 2 }, { teach: ['apart'], with: ['apart', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 8], showcase: 108 },
-  // 12 Eye & parity
-  { tutorials: [{ teach: ['eye'], with: ['eye', 'blank'], size: 24, target: 3 }, { teach: ['parity'], with: ['parity', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [7, 8], showcase: 108 },
-  // 13 Threads & zones
-  { tutorials: [{ teach: ['link'], with: ['link', 'blank'], size: 22, target: 2 }, { teach: ['zone'], with: ['zone', 'blank'], size: 24, target: 3 }], size: [60, 110], target: [7, 9], showcase: 108 },
-  // 14 Finale
+  { tutorials: [{ teach: ['radius'], with: ['radius'], size: 18, target: 2 }], size: [45, 85], target: [3, 4], showcase: 100 },
+  // 5 Rings
+  { tutorials: [{ teach: ['ring'], with: ['ring'], size: 22, target: 2 }, { teach: ['donut'], with: ['donut'], size: 26, target: 3 }], size: [45, 90], target: [3, 5], showcase: 102 },
+  // 6 Cones
+  { tutorials: [{ teach: ['cone'], with: ['cone'], size: 20, target: 2 }, { teach: ['triangle'], with: ['triangle'], size: 24, target: 3 }], size: [48, 90], target: [4, 5], showcase: 104 },
+  // 7 Dots
+  { tutorials: [{ teach: ['dot'], with: ['dot'], size: 22, target: 2 }], size: [50, 95], target: [4, 6], showcase: 104 },
+  // 8 Locks
+  { tutorials: [{ teach: ['lock'], with: ['lock'], size: 20, target: 2 }], size: [50, 95], target: [5, 6], showcase: 106 },
+  // 9 Rotation
+  { tutorials: [{ teach: ['rotate'], with: ['rotate', 'walls', 'line'], size: 22, target: 3 }], size: [52, 100], target: [5, 7], showcase: 106 },
+  // 10 Zones
+  { tutorials: [{ teach: ['zone'], with: ['zone'], size: 24, target: 3 }], size: [55, 105], target: [6, 7], showcase: 108 },
+  // 11 Finale
   { tutorials: [], size: [70, 110], target: [8, 10], showcase: 158 },
 ];
 
-const SHOWCASE: ShapeId[] = ['flower', 'islands2', 'star', 'heart', 'glyph', 'ring', 'flower', 'hexagon', 'islands3', 'glyph', 'heart', 'star', 'blob', 'flower'];
+const SHOWCASE: ShapeId[] = ['hexagon', 'flower', 'star', 'heart', 'glyph', 'ring', 'flower', 'hexagon', 'blob', 'heart', 'flower'];
 /** Older mechanics that are kept with a high probability (they shape every board). */
-const STRUCTURAL: MechanicId[] = ['fog', 'blank', 'walls', 'gaps'];
-const CLUE_MECHS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'swirl', 'island', 'chain', 'eye', 'parity'];
+const STRUCTURAL: MechanicId[] = ['fog', 'walls', 'gaps'];
+const CLUE_MECHS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot'];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** The last world rises with a saw-tooth to its finale (rated 10). */
@@ -153,8 +106,6 @@ function reorderWorld(levels: Level[], plans: GenOptions[], prefix: string): voi
   for (const { slot, level } of placed) levels[slot.pos] = level;
 }
 const isFinale = (id: string) => id.endsWith('-12');
-/** Mechanics that carry information from one island to another. */
-const CROSS: MechanicId[] = ['line', 'radius', 'ring', 'donut', 'cone', 'triangle', 'dot', 'eye', 'portal', 'zone', 'link'];
 
 export function plan(): GenOptions[] {
   const out: GenOptions[] = [];
@@ -168,14 +119,6 @@ export function plan(): GenOptions[] {
     w.levels.forEach((id, li) => {
       const rng = makeRng(`plan:${id}`);
       const seed = `campaign:${id}`;
-      if (w.n === 1 && li === 8) {
-        // «Тишина» is introduced on a tiny board
-        out.push({
-          seed, id, size: 20, mechanics: ['basic', 'counter', 'fog', 'blank'], targetDifficulty: 2, teach: ['blank'],
-          density: 0.24, simple: true, maxCols: 7, human: { maxAha: 0, deep: false }, islands: false, maxBlankShare: 0.2,
-        });
-        return;
-      }
       if (li < nTut) {
         const t = P.tutorials[li];
         const mechanics: MechanicId[] = [
@@ -219,10 +162,9 @@ export function plan(): GenOptions[] {
       const keepOld = wi === W - 1 ? 0.7 : 0.5;
       for (const m of older) {
         if (mech.has(m)) continue;
-        if (m === 'blank' || rng.chance(STRUCTURAL.includes(m) ? Math.max(0.8, keepOld) : keepOld)) mech.add(m);
+        if (m === 'gaps' || rng.chance(STRUCTURAL.includes(m) ? Math.max(0.8, keepOld) : keepOld)) mech.add(m);
       }
       if (w.n >= 2) mech.add('fog');
-      if (w.n === 1 && li < 8) mech.delete('blank'); // the first levels stay pure numbers
       if (mech.has('multiline')) mech.add('line');
       if (mech.has('portal')) mech.add('gaps');
       const weights: Partial<Record<MechanicId, number>> = {};
@@ -236,23 +178,24 @@ export function plan(): GenOptions[] {
         mechanics: [...mech],
         weights,
         targetDifficulty: target,
-        feature: w.introduces.filter((m) => m !== 'fog' && m !== 'blank' && m !== 'gaps'),
+        feature: w.introduces.filter((m) => m !== 'fog' && m !== 'gaps'),
         shape: showcase ? SHOWCASE[wi] : undefined,
         density,
-        special: lerp(0.09, 0.17, worldT) + rng.next() * 0.02,
+        // like the original: 9% of the safe cells carry a ranged clue early, ~15% late
+        special: lerp(0.05, 0.1, worldT) + rng.next() * 0.02, // (the repair adds a few more where islands need a link)
         walls: mech.has('walls') ? 0.06 + rng.next() * 0.07 : undefined,
-        islands: mech.has('gaps') && size >= 30 && CROSS.some((m) => mech.has(m)) ? rng.chance(0.5) : false,
+        // generator default: mostly 2–6 islands; the finale world keeps bigger pieces (2–3 or one)
+        islands: !mech.has('gaps') ? false : wi === W - 1 ? (rng.chance(0.4) ? false : 2 + rng.int(2)) : undefined,
         fog: true,
         simple: w.n === 1,
         maxCols: w.n <= 3 ? 7 : showcase && w.n === WORLDS.length ? 11 : 9,
         // bottlenecks: a pair (or shallow) step at least every ~25 easy cells; pairs from w01-10 on
-        maxTrivialRun: w.n === 1 ? (li >= 9 ? 14 : undefined) : w.n === 2 ? 18 : showcase ? 22 : 25,
-        maxBlankShare: w.n <= 2 ? 0.08 : undefined,
+        maxTrivialRun: w.n <= 2 ? undefined : showcase ? 22 : 25,
         // human solvability: steps beyond single clues / pairs / the counter alone
         human:
           w.n <= 3
             ? { maxAha: 0, deep: false }
-            : w.n <= 8
+            : w.n <= 7
               ? { maxAha: 4, deep: false, maxRun: 3 }
               : w.n < WORLDS.length
                 ? { maxAha: 7, deep: false, maxRun: 3 }
@@ -351,7 +294,7 @@ function main() {
     if (isFinale(p.id!) && prev && prev.id.slice(0, 3) === p.id!.slice(0, 3)) {
       const badness = (l: Level) =>
         Math.max(0, (prev.diff ?? 0) - (l.diff ?? 0)) * 10 + Math.max(0, longestTrivialRun(solveDetailed(l, { trace: true })) - 25);
-      for (let k = 1; k <= 5 && badness(level) > 0; k++) {
+      for (let k = 1; k <= 9 && badness(level) > 0; k++) {
         const alt = generateLevel({ ...p, seed: `${p.seed}#${k}` });
         if (badness(alt) < badness(level)) level = { ...alt, id: p.id! };
       }

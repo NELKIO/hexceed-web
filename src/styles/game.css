@@ -376,7 +376,7 @@
   min-width: 150px;
 }
 
-:root[data-theme='light'] .modesw {
+:root:not([data-theme='dark']) .modesw {
   background: var(--surface-2);
 }
 
@@ -392,7 +392,7 @@
   transition: transform 0.22s var(--ease);
 }
 
-:root[data-theme='light'] .ms-thumb {
+:root:not([data-theme='dark']) .ms-thumb {
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(20, 23, 28, 0.06);
 }
@@ -615,6 +615,19 @@
   stroke-width: 1;
 }
 
+/* «Утро»: a 1.5px darker lower edge gives the flat tiles a hint of depth */
+.hid .t-base {
+  fill: var(--hid-edge);
+}
+
+.open .t-base {
+  fill: var(--open-edge);
+}
+
+.gem .t-base {
+  fill: var(--lit-edge);
+}
+
 /* lit (огонёк): dark glass with a thin warm rim */
 .gem .t-face {
   fill: var(--lit-face);
@@ -626,7 +639,7 @@
 
 .cn {
   font-family: var(--font);
-  font-weight: 600;
+  font-weight: var(--num-weight);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   fill: var(--num);
@@ -651,29 +664,34 @@
   fill: var(--num-done);
 }
 
-.c-arrow,
-.c-cone,
-.c-dot,
 .c-swirl-head,
 .c-swirl-start {
   fill: var(--glyph);
 }
 
-.c-dot-trail {
-  fill: var(--glyph);
-  opacity: 0.55;
-}
-
+/* clue accents: rays coral, areas teal, cones violet, dots slate (one hue family each; the dark
+   theme maps them all to its single glyph grey) */
 .c-arrow {
-  stroke: var(--glyph);
+  fill: var(--g-line);
+  stroke: var(--g-line);
   stroke-width: 1;
   stroke-linejoin: round;
 }
 
 .c-cone {
-  stroke: var(--glyph);
+  fill: var(--g-cone);
+  stroke: var(--g-cone);
   stroke-width: 1;
   stroke-linejoin: round;
+}
+
+.c-dot {
+  fill: var(--g-dot);
+}
+
+.c-dot-trail {
+  fill: var(--g-dot);
+  opacity: 0.55;
 }
 
 .c-tri,
@@ -694,16 +712,22 @@
   stroke-linejoin: round;
 }
 
+.c-tri {
+  stroke: var(--g-cone);
+}
+
 .c-ring {
+  stroke: var(--g-area);
   stroke-width: 2.2;
 }
 
 .c-donut {
+  stroke: var(--g-area);
   stroke-width: 1.7;
 }
 
 .c-radius {
-  fill: var(--glyph-fill);
+  fill: var(--g-area-fill);
   stroke: none;
 }
 
@@ -861,28 +885,16 @@
 }
 
 /* fog: no fill, a dotted hairline silhouette */
-/* fog: cells are invisible; BoardLayer draws one dotted silhouette per fog region */
+/* unavailable cells (not referenced by any open clue yet): a flat silhouette, the whole map visible */
 .t-fog {
-  fill: transparent;
+  fill: var(--cell-off);
   stroke: none;
-}
-
-.fog-edge {
-  fill: none;
-  stroke: var(--fog);
-  stroke-width: 1;
-  stroke-dasharray: 0.1 4.2;
-  stroke-linecap: round;
-  pointer-events: none;
 }
 
 /* the how-to icon still shows one fogged hex */
 .mech-ic .t-fog {
-  fill: none;
-  stroke: var(--ink-3);
-  stroke-width: 1.6;
-  stroke-dasharray: 0.1 4.6;
-  stroke-linecap: round;
+  fill: var(--cell-off);
+  stroke: none;
 }
 
 /* ---------------------------------------------------------------- the light («огонёк») */
@@ -893,7 +905,7 @@
 
 .piece .pc-ring {
   fill: none;
-  stroke: var(--lume);
+  stroke: var(--lume-ring);
   stroke-width: 1.5;
 }
 
@@ -960,13 +972,13 @@
   animation: haloIn 0.32s var(--ease) both;
 }
 
-:root[data-theme='light'] .pc-halo {
-  opacity: 0.4;
+/* «Утро»: the light stays on its own indigo tile — no spill, no breathing */
+:root:not([data-theme='dark']) .halos {
+  display: none;
 }
 
-/* on paper the light is a warm core with a fine ring, not a glow */
-:root[data-theme='light'] .piece .pc-aura {
-  opacity: 0.35;
+:root:not([data-theme='dark']) .piece .pc-aura {
+  opacity: var(--aura-opacity);
   animation: none;
 }
 
@@ -1090,24 +1102,17 @@
 .wall {
   fill: none;
   stroke: var(--wall);
-  stroke-width: 4.6;
-  stroke-linecap: square;
+  stroke-width: var(--wall-w);
+  stroke-linecap: var(--wall-cap);
+  stroke-linejoin: round;
 }
 
-/* a thin cut of the ground colour around every wall keeps it crisp against the tiles */
+/* dark theme: a thin cut of the ground colour around every wall keeps it crisp */
 .wall-shadow {
   fill: none;
-  stroke: var(--bg);
+  stroke: var(--wall-cut);
   stroke-width: 8.6;
-  stroke-linecap: square;
-}
-
-.walls.fogged {
-  opacity: 0.16;
-}
-
-.fogf .own-walls {
-  display: none;
+  stroke-linecap: var(--wall-cap);
 }
 
 .portal {
@@ -1158,15 +1163,15 @@
 }
 
 .zone-badge rect {
-  fill: var(--bg-2);
+  fill: var(--zone-badge);
   stroke: var(--zone);
   stroke-width: 1.4;
 }
 
 .zone-badge text {
   fill: var(--ink);
-  font-family: var(--mono);
-  font-weight: 500;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .link {
@@ -1332,7 +1337,7 @@
 /* hint target: the one cell to act on — a warm ring, stronger than any area outline */
 .hint-ring {
   fill: none;
-  stroke: var(--lume);
+  stroke: var(--hint-ring);
   stroke-width: 3.2;
   pointer-events: none;
 }
@@ -1342,7 +1347,7 @@
 }
 
 .hint-target .hint-dot {
-  fill: var(--lume);
+  fill: var(--hint-ring);
   stroke: var(--bg);
   stroke-width: 2;
 }
@@ -2002,4 +2007,85 @@
     right: 14px;
     justify-content: flex-start;
   }
+}
+
+/* ---------------------------------------------------------------- v4 «Утро» chrome
+   The counter is a white card top-left with the light and a big number; tools are flat white
+   round-squares; the mode switch is a white segmented card. */
+:root:not([data-theme='dark']) .g-top .icon-btn {
+  order: 0;
+}
+
+:root:not([data-theme='dark']) .g-counter {
+  order: 1;
+  background: var(--chrome-bg);
+  box-shadow: var(--chrome-shadow);
+  border-radius: 14px;
+  padding: 0 14px 0 12px;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+:root:not([data-theme='dark']) .g-title {
+  order: 2;
+  padding-left: 4px;
+}
+
+:root:not([data-theme='dark']) .g-mistakes {
+  order: 3;
+}
+
+:root:not([data-theme='dark']) .tool {
+  background: var(--chrome-bg);
+  box-shadow: var(--chrome-shadow);
+  border-radius: 14px;
+}
+
+:root:not([data-theme='dark']) .tool:hover {
+  background: var(--surface-2);
+}
+
+:root:not([data-theme='dark']) .tool.hint.active {
+  background: var(--accent-soft);
+}
+
+:root:not([data-theme='dark']) .modesw {
+  background: var(--chrome-bg);
+  border-color: transparent;
+  box-shadow: var(--chrome-shadow);
+  border-radius: 14px;
+}
+
+:root:not([data-theme='dark']) .ms-thumb {
+  background: var(--accent-soft);
+  box-shadow: none;
+  border-radius: 10px;
+}
+
+:root:not([data-theme='dark']) .modesw.gem .ms-thumb {
+  background: rgba(58, 67, 168, 0.12);
+}
+
+:root:not([data-theme='dark']) .ms-opt.on {
+  color: var(--lit-face);
+}
+
+:root:not([data-theme='dark']) .ms-opt:not(.on) .pi-ring,
+:root:not([data-theme='dark']) .ms-opt:not(.on) .pi-core {
+  stroke: currentColor;
+}
+
+
+:root:not([data-theme='dark']) .toast {
+  border-color: transparent;
+  box-shadow: 0 10px 30px -12px rgba(30, 36, 48, 0.3);
+}
+
+:root:not([data-theme='dark']) .toast.hint {
+  box-shadow: 0 0 0 1.5px var(--accent-soft), 0 10px 30px -12px rgba(30, 36, 48, 0.3);
+}
+
+/* the board ground: the mist is a touch lighter in the centre */
+:root:not([data-theme='dark']) .game {
+  background: radial-gradient(70% 60% at 50% 50%, #eef2f8, var(--bg) 75%);
 }

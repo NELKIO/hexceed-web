@@ -62,9 +62,9 @@ export function toExplain(level: Level, seen: string[]): Mech[] {
   const set = new Set(seen);
   const want = new Set<Mech>([...(level.teach ?? []), ...levelMechanics(level)]);
   const fresh = MECH_ORDER.filter((m) => want.has(m) && !set.has(m));
-  // keep the first encounter light: taught mechanics first, at most four cards
+  // every new mechanic gets its card (taught ones first); the sheet pages through them
   const taught = fresh.filter((m) => level.teach?.includes(m));
-  return [...taught, ...fresh.filter((m) => !taught.includes(m))].slice(0, 4);
+  return [...taught, ...fresh.filter((m) => !taught.includes(m))];
 }
 
 export interface Demo {

@@ -8,37 +8,44 @@ Target players: the owner (likes hard puzzles) and his girlfriend (needs a very 
 So: **light theme by default** (dark theme optional), gentle onboarding, no game over, optional
 hints that explain *why*, and later worlds that are genuinely hard.
 
+## Theme
+
+«Огоньки»: the hidden object is a warm light. Marking a hex lights it from inside (amber glow +
+soft halo onto the neighbours); the whole board glows in a wave on a win. All theme art lives in
+`src/ui/art/Piece.tsx` (board glyph, halo, UI icon, logo) and the `--glow-*` / `--lit-*` tokens, so
+another theme only touches those. Internal identifiers keep the old `gem` name.
+
 ## Core loop
 
-The board is a set of hexes. Every hidden hex is either a **crystal** (the "mine") or **empty**.
+The board is a set of hexes. Every hidden hex is either a **light** («огонёк», the "mine") or **empty**.
 - Tap / left click: "this hex is empty" → it opens and shows its clue.
-- Long-press / right click (or the mode switch in the bottom bar): "this is a crystal" → it is marked.
+- Long-press / right click (or the mode switch in the bottom bar): "this is a light" → it is marked.
 - A wrong guess is a **mistake**: the hex does not change, the board shakes, a soft thud plays.
   No game over. Stars: 3 (clean), 2 (≤2 mistakes+hints), 1.
 - The level is done when every hex is opened or marked. Every level is solvable by pure logic
   (verified by the solver), no guessing ever needed.
-- The crystal counter (remaining crystals) is always visible and is itself a clue.
+- The light counter (remaining lights) is always visible and is itself a clue.
 
 ## Mechanics (exact semantics in `src/core/rules.ts`, player wording in `docs/MECHANICS.md`)
 
 | id | name (ru) | what it means |
 |----|-----------|---------------|
-| basic | Число | crystals among the 6 neighbours (not through walls) |
-| counter | Счётчик | remaining crystals on the whole board |
+| basic | Число | lights among the 6 neighbours (not through walls) |
+| counter | Счётчик | remaining lights on the whole board |
 | walls | Стены | thick edge between two hexes: blocks neighbours, lines, eyes |
-| gaps | Острова | holes in the board; lines/rings/cones/eyes jump across them |
-| line | Луч | arrow(s): crystals along straight line(s), stopped by walls |
-| ring | Кольцо | crystals within 2 steps (18 hexes), ignores walls |
+| gaps | Пустоты | holes in the board; rays, rings, cones and eyes jump across them |
+| line | Луч | arrow(s): lights along straight line(s), stopped by walls |
+| ring | Кольцо | lights within 2 steps (18 hexes), ignores walls |
 | cone | Конус | 9-hex wedge from a corner, up to 3 steps, ignores walls |
-| lock | Замок | known-empty hex that opens by itself after N crystals are marked |
-| gemclue | Сияющий кристалл | a marked crystal that shows a ring count |
-| together | Вместе `{n}` | the n neighbouring crystals form one connected arc |
-| apart | Врозь `-n-` | the crystals do NOT form one arc |
-| eye | Глаз (new) | how many of the 6 directions see a crystal first (crystals block sight; walls block) |
-| parity | Чёт/нечет (new) | only the parity of neighbouring crystals |
+| lock | Замок | known-empty hex that opens by itself after N lights are marked |
+| gemclue | Яркий огонёк | a lit cell that shows a count |
+| together | Вместе `{n}` | the n neighbouring lights form one connected arc |
+| apart | Врозь `-n-` | the lights do NOT form one arc |
+| eye | Глаз | how many hexes are seen along the 6 straight lines up to the first light or wall (holes jumped) |
+| parity | Чёт/нечет (new) | only the parity of neighbouring lights |
 | spin | Флюгер | arrow you can rotate with a tap; shows the line count for the current direction |
 | link | Нить (new) | thread between two hexes: "=" same kind, "≠" different kinds |
-| zone | Зона (new) | dashed outline around several hexes with the crystal count inside |
+| zone | Зона (new) | dashed outline around several hexes with the light count inside |
 | blank | Тишина | an open hex with no information |
 
 ## Structure
@@ -73,10 +80,10 @@ src/
 
 ## UX principles
 
-- Minimal chrome: board fills the screen; top bar = back, level name, crystal counter;
-  bottom = mode switch (open / crystal), hint, menu. Everything else in sheets.
+- Minimal chrome: board fills the screen; top bar = back, level name, light counter;
+  bottom = mode switch (open / light), hint, menu. Everything else in sheets.
 - Hold a revealed clue → its covered hexes highlight. Tap a clue → pin highlight. Finished clues dim.
 - Double-tap a satisfied clue → chord.
 - Hint: highlights the clues that prove the next move and says it in words.
-- Smooth animations: flip-open, crystal pop + sparkle, cascade waves, level-complete bloom.
+- Smooth animations: flip-open, light-up glow + halo, cascade waves, level-complete bloom.
 - Phone (portrait, one hand) and desktop (mouse + keyboard) both first-class.

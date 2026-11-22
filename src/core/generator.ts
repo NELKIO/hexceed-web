@@ -70,6 +70,10 @@ export interface GenOptions {
   tolerance?: number;
   /** Widest board in hex columns (default 9, 11 above 120 hexes). */
   maxCols?: number;
+  /** Plain convex outlines only (first levels). */
+  simple?: boolean;
+  /** Longest allowed run of cells cleared by easy steps between two harder steps (penalised above). */
+  maxTrivialRun?: number;
 }
 
 /** Solver calls made by the current generateLevel() (deterministic work budget). */
@@ -484,6 +488,16 @@ function openingShare(r: DetailedReport, n: number): number {
 
 const hardSteps = (r: DetailedReport) => r.tierCounts[1] + r.tierCounts[2] + r.tierCounts[3];
 
+/** Longest stretch of cells decided by tier-1 steps without a harder step in between. */
+export function longestTrivialRun(r: { events: { tier: number; cells: number[] }[] }): number {
+  let run = 0, best = 0;
+  for (const e of r.events) {
+    if (e.tier >= 2) run = 0;
+    else best = Math.max(best, (run += e.cells.length));
+  }
+  return best;
+}
+
 function solveOpts(mech: Set<MechanicId>, maxTier: Tier) {
   return { maxTier, noGlobal: !mech.has('counter') };
 }
@@ -583,7 +597,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   const NT = 3; // special cells on a teaching level
 
   // --- outline
-  let { coords, shape } = makeShape(rng, size, { gaps, islands, want: opts.shape, maxCols: opts.maxCols });
+  let { coords, shape } = makeShape(rng, size, { gaps, islands, want: opts.shape, maxCols: opts.maxCols, simple: opts.simple });
   if (gaps && !islands && !SHAPES.find((s) => s.id === shape)!.gaps && size >= 16 && (mech.has('portal') || rng.chance(0.6))) coords = carveHoles(rng, coords);
   let cells: LevelCell[] = coords.map(([q, r]) => ({ q, r, gem: false }));
   const level: Level = { id: opts.id ?? `gen-${typeof opts.seed === 'number' ? opts.seed : hashString(opts.seed)}`, cells, walls: [] };
@@ -1179,6 +1193,7 @@ function attempt(opts: GenOptions, rng: Rng, T: number, maxTier: Tier, relaxed =
   // penalties for the attempt ranking
   let penalty = 0;
   if (T >= 4) penalty += Math.max(0, openingShare(rep, n) - 0.5) * 4;
+  if (opts.maxTrivialRun) penalty += Math.max(0, longestTrivialRun(rep) - opts.maxTrivialRun) / 8;
   penalty += Math.max(0, cells.filter((c) => c.start).length - nStarts) * 1.5; // extra starts are a last resort
   for (const m of opts.feature ?? []) {
     if (!mech.has(m) || STRUCTURAL.includes(m) || mechanicCount(level, m) === 0 || spent()) continue;
@@ -1255,55 +1270,113 @@ const EXTRA_MECHS: MechanicId[] = [
   'rotate', 'switch', 'big', 'portal', 'island', 'chain', 'together', 'apart', 'eye', 'parity', 'link', 'zone',
 ];
 
-function randomMechanics(rng: Rng, k: number): MechanicId[] {
-  const pool = rng.shuffle(EXTRA_MECHS.slice());
-  const out: MechanicId[] = ['basic', 'counter', 'fog', 'blank', ...pool.slice(0, k)];
-  if (out.includes('multiline') && !out.includes('line')) out.push('line');
-  if ((out.includes('gaps') || out.includes('portal')) && !out.includes('line') && rng.chance(0.7)) out.push('line');
+/** basic + counter + fog + blank and k extra mechanics, drawn from `from` (default: all). */
+function randomMechanics(rng: Rng, k: number, from: MechanicId[] = EXTRA_MECHS): MechanicId[] {
+  const allowed = new Set(from);
+  const pool = rng.shuffle(EXTRA_MECHS.filter((m) => allowed.has(m)));
+  const base: MechanicId[] = ['basic', 'counter', 'fog', 'blank'].filter((m) => m === 'basic' || allowed.has(m as MechanicId) || from === EXTRA_MECHS) as MechanicId[];
+  const out: MechanicId[] = [...base, ...pool.slice(0, k)];
+  if (out.includes('multiline') && !out.includes('line') && allowed.has('line')) out.push('line');
+  if ((out.includes('gaps') || out.includes('portal')) && !out.includes('line') && allowed.has('line') && rng.chance(0.7)) out.push('line');
   return out;
 }
 
-export function dailyLevel(dateISO: string): Level {
+/**
+ * Generate until the rating lands in [lo, hi]: options for try k come from make(k) (k = 0 is the
+ * plain seed, later tries use derived seeds); the closest result is kept. Deterministic.
+ */
+function generateInRange(make: (k: number) => GenOptions, lo: number, hi: number, tries: number): Level {
+  let best: Level | null = null;
+  let bestDist = Infinity;
+  let id = '';
+  for (let k = 0; k < tries; k++) {
+    const o = make(k);
+    id ||= o.id ?? '';
+    const L = generateLevel(o);
+    const d = L.diff ?? 1;
+    const dist = d < lo ? lo - d : d > hi ? d - hi : 0;
+    if (dist < bestDist) {
+      best = L;
+      bestDist = dist;
+    }
+    if (dist === 0) break;
+  }
+  return { ...best!, id: id || best!.id };
+}
+
+/**
+ * The daily puzzle: deterministic per date (the same for everyone when `mechanics` is omitted).
+ * `mechanics` restricts the draw to those mechanics (e.g. what the player has unlocked).
+ */
+export function dailyLevel(dateISO: string, mechanics?: MechanicId[]): Level {
   const day = dateISO.slice(0, 10);
-  const rng = makeRng(`daily:${day}`);
-  const mechanics = randomMechanics(rng, 3 + rng.int(3));
-  return generateLevel({
-    seed: `daily:${day}`,
-    id: `daily-${day}`,
-    size: 50 + rng.int(30),
-    density: 0.27 + rng.next() * 0.04,
-    special: 0.15 + rng.next() * 0.06,
-    mechanics,
-    targetDifficulty: 5,
-    attempts: 4,
-    budget: 450,
-  });
+  const base = mechanics ? `daily:${day}:${[...mechanics].sort().join(',')}` : `daily:${day}`;
+  return generateInRange(
+    (k) => {
+      const tag = k ? `${base}#${k}` : base;
+      const rng = makeRng(tag);
+      return {
+        seed: tag,
+        id: `daily-${day}`,
+        size: 50 + rng.int(25),
+        density: 0.27 + rng.next() * 0.04,
+        special: 0.14 + rng.next() * 0.05,
+        mechanics: mechanics ? randomMechanics(rng, 2 + rng.int(3), mechanics) : randomMechanics(rng, 2 + rng.int(3)),
+        targetDifficulty: 5,
+        attempts: 3,
+        budget: 160,
+        maxCols: 9,
+      };
+    },
+    4,
+    6,
+    3,
+  );
 }
 
 export type EndlessDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
-const ENDLESS: Record<EndlessDifficulty, { size: [number, number]; target: number; mechs: [number, number]; density: [number, number]; budget: number }> = {
-  easy: { size: [30, 50], target: 2, mechs: [0, 2], density: [0.2, 0.24], budget: 250 },
-  medium: { size: [45, 70], target: 5, mechs: [2, 4], density: [0.25, 0.29], budget: 350 },
-  hard: { size: [60, 90], target: 7, mechs: [3, 5], density: [0.29, 0.32], budget: 260 },
-  expert: { size: [75, 105], target: 10, mechs: [4, 6], density: [0.32, 0.35], budget: 210 },
+const ENDLESS: Record<
+  EndlessDifficulty,
+  { size: [number, number]; target: number; range: [number, number]; mechs: [number, number]; density: [number, number]; budget: number }
+> = {
+  easy: { size: [25, 45], target: 2, range: [1, 2], mechs: [0, 2], density: [0.2, 0.24], budget: 200 },
+  medium: { size: [45, 70], target: 4, range: [3, 5], mechs: [2, 4], density: [0.25, 0.29], budget: 280 },
+  hard: { size: [60, 90], target: 7, range: [5, 10], mechs: [3, 5], density: [0.29, 0.32], budget: 240 },
+  expert: { size: [75, 100], target: 10, range: [7, 10], mechs: [4, 6], density: [0.32, 0.35], budget: 170 },
 };
 
+/** "Numbers and walls": what easy endless levels are made of unless mechanics are given. */
+const EASY_MECHS: MechanicId[] = ['basic', 'counter', 'fog', 'walls', 'gaps'];
+
+/**
+ * Endless level of a difficulty mode, rating enforced (easy 1–2, medium 3–5, hard >= 5, expert >= 7).
+ * `mechanics` (e.g. the unlocked ones) is the allowed set; easy defaults to numbers, walls and gaps.
+ */
 export function endlessLevel(seed: number | string, difficulty: EndlessDifficulty, mechanics?: MechanicId[]): Level {
   const cfg = ENDLESS[difficulty];
-  const rng = makeRng(`endless:${difficulty}:${seed}`);
-  const size = cfg.size[0] + rng.int(cfg.size[1] - cfg.size[0] + 1);
-  const mechs = mechanics ?? randomMechanics(rng, cfg.mechs[0] + rng.int(cfg.mechs[1] - cfg.mechs[0] + 1));
-  const density = cfg.density[0] + rng.next() * (cfg.density[1] - cfg.density[0]);
-  return generateLevel({
-    seed: `endless:${difficulty}:${seed}`,
-    id: `endless-${difficulty}-${seed}`,
-    size,
-    density,
-    special: 0.12 + rng.next() * 0.1,
-    mechanics: mechs,
-    targetDifficulty: cfg.target,
-    attempts: 3,
-    budget: cfg.budget,
-  });
+  const base = mechanics ? `endless:${difficulty}:${seed}:${[...mechanics].sort().join(',')}` : `endless:${difficulty}:${seed}`;
+  return generateInRange(
+    (k) => {
+      const tag = k ? `${base}#${k}` : base;
+      const rng = makeRng(tag);
+      const size = cfg.size[0] + rng.int(cfg.size[1] - cfg.size[0] + 1);
+      const mechs = mechanics ?? (difficulty === 'easy' ? EASY_MECHS : randomMechanics(rng, cfg.mechs[0] + rng.int(cfg.mechs[1] - cfg.mechs[0] + 1)));
+      return {
+        seed: tag,
+        id: `endless-${difficulty}-${seed}`,
+        size,
+        density: cfg.density[0] + rng.next() * (cfg.density[1] - cfg.density[0]),
+        special: 0.12 + rng.next() * 0.1,
+        mechanics: mechs,
+        targetDifficulty: cfg.target,
+        attempts: 3,
+        budget: cfg.budget,
+        maxCols: 9,
+      };
+    },
+    cfg.range[0],
+    cfg.range[1],
+    difficulty === 'easy' ? 3 : 4,
+  );
 }

@@ -3,6 +3,10 @@
 // The transport is injected, so the whole session runs against an in-memory pair in tests.
 
 import type { Level } from '../core/types';
+import { validateLevel } from '../core/validate';
+
+/** Received levels larger than this (serialised) are refused. */
+const MAX_LEVEL_CHARS = 256 * 1024;
 import { CoopLog, isStamped, type CoopOp, type Stamped, type Vec } from './coop';
 import { cleanColor, cleanName, type Profile } from './ids';
 import type { Path, Transport, TransportHandlers } from './transport';
@@ -115,10 +119,19 @@ export function isLevelShape(l: unknown): l is Level {
   if (!l || typeof l !== 'object') return false;
   const x = l as Record<string, unknown>;
   if (!isStr(x.id, 120) || !Array.isArray(x.cells) || x.cells.length < 1 || x.cells.length > 2000 || !Array.isArray(x.walls)) return false;
-  return x.cells.every((c) => {
+  const cellsOk = x.cells.every((c) => {
     const y = c as Record<string, unknown>;
     return !!y && typeof y === 'object' && isInt(y.q) && isInt(y.r) && typeof y.gem === 'boolean';
   });
+  if (!cellsOk) return false;
+  try {
+    if (JSON.stringify(l).length > MAX_LEVEL_CHARS) return false;
+    // the core's full validation (clue kinds, walls, links…)
+    if (!validateLevel(l)) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 function isSource(s: unknown): s is PuzzleSource {

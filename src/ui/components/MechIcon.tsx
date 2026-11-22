@@ -45,7 +45,7 @@ function art(m: MechanicId): JSX.Element {
     case 'basic':
       return clue({ k: 'num' }, '2');
     case 'counter':
-      return GEM(<CrystalGlyph scale={1.12} />);
+      return GEM(<g class="gem-g"><CrystalGlyph /></g>);
     case 'fog':
       return <path class="t-fog" d={TILE_PATH} />;
     case 'walls':
@@ -88,7 +88,6 @@ function art(m: MechanicId): JSX.Element {
     case 'gemclue':
       return GEM(
         <g class="clue">
-          <CrystalGlyph scale={1.9} />
           <ClueGlyph clue={{ k: 'radius' }} value="2" onGem />
         </g>,
       );

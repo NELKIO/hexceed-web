@@ -33,6 +33,12 @@ export function MiniBoard({ mech, playing = true }: { mech: MechanicId; playing?
   const sim = useMemo(() => {
     const g = newGameV2(level, 'gentle');
     for (const i of focusIdx) if (g.state[i] === CellState.Hidden) act(g, i, level.cells[i].gem ? 'mark' : 'reveal');
+    // the lights a clue counts are lit from the start, so its number visibly matches them
+    // (not for the counter / lock demos, which are about lighting them one by one)
+    if (mech !== 'counter' && !demo.lock && mech !== 'fog')
+      level.cells.forEach((c, i) => {
+        if (c.gem && g.state[i] === CellState.Hidden) act(g, i, 'mark');
+      });
     return { g, fx: newFx(level.cells.length), hl: [] as Highlight[] };
   }, [level, tick]);
 

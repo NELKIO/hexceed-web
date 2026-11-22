@@ -15,11 +15,13 @@ import { registerBuiltinRoutes } from './ui/routes';
 import { registerOnlineRoutes, startSyncIfLinked } from './ui/online/entry';
 import { App } from './ui/App';
 import { unlockAudio } from './audio/sfx';
+import { registerSW } from './ui/pwa';
 
 initSettings();
 registerBuiltinRoutes();
 registerOnlineRoutes();
 startSyncIfLinked();
+registerSW();
 
 // iOS/Chrome need a user gesture before audio can start
 const unlock = () => {

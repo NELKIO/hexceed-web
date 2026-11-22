@@ -17,6 +17,7 @@ import { CORNER_ANGLE, EDGE_ANGLE } from '../../core/hex';
 import { CellState } from '../../core/types';
 import { t } from '../../i18n';
 import { TILE_PATH } from './geometry';
+import { PieceGlyph } from '../art/Piece';
 import type { LooseClue } from './compat';
 
 export type Enter = 'none' | 'deal' | 'flip' | 'unlock' | 'pop' | 'condense' | 'rewind';
@@ -119,15 +120,8 @@ function Braces({ mod, w = 15 }: { mod: 'together' | 'apart'; w?: number }) {
   );
 }
 
-export function CrystalGlyph({ scale = 1, y = 0 }: { scale?: number; y?: number }) {
-  return (
-    <g class="crystal" transform={`translate(0 ${y}) scale(${scale})`}>
-      <path class="cr-body" d="M-13,-5 L-6.5,-13 L6.5,-13 L13,-5 L0,14 Z" />
-      <path class="cr-facet" d="M-13,-5 H13 M-6.5,-13 L-3,-5 L0,14 L3,-5 L6.5,-13" />
-      <path class="cr-shine" d="M-8.5,-6.5 L-5,-10.8 L-2.8,-6.5 Z" />
-    </g>
-  );
-}
+/** The hidden object as drawn on the board (theme art: ui/art/Piece.tsx). */
+export const CrystalGlyph = PieceGlyph;
 
 export function LockGlyph({ n }: { n: number }) {
   return (
@@ -309,7 +303,7 @@ function HiddenTile({ locked, lockN, tile }: { locked: boolean; lockN: number; t
 function Badges({ rotating, switching }: { rotating: boolean; switching: boolean }) {
   if (!rotating && !switching) return null;
   return (
-    <g class="cbadge" transform="translate(-26.5 0)">
+    <g class="cbadge" transform="translate(-22 -17) scale(1.3)">
       <circle r={7.5} />
       {rotating ? (
         <path class="cb-ic" d="M-3.6,-1.2 A3.8,3.8 0 0 1 3.4,-1.6 M3.6,1.2 A3.8,3.8 0 0 1 -3.4,1.6 M3.4,-1.6 l0.2,-2.4 M3.4,-1.6 l-2.3,-0.4 M-3.4,1.6 l-0.2,2.4 M-3.4,1.6 l2.3,0.4" />
@@ -373,13 +367,11 @@ function Face(p: CellProps) {
           <path class="t-hi" d={tile} />
           {gc ? (
             <g class={p.done ? 'clue done' : 'clue'} key={p.glyphKey}>
-              <CrystalGlyph scale={1.9} y={0} />
               <ClueGlyph clue={p.clue} value={p.value} rotDeg={p.rotDeg} onGem />
             </g>
           ) : (
             <g class="gem-g">
-              <CrystalGlyph scale={1.12} />
-              <path class="twinkle" d="M14,-17 l1.6,4 4,1.6 -4,1.6 -1.6,4 -1.6,-4 -4,-1.6 4,-1.6 Z" />
+              <CrystalGlyph scale={1} />
             </g>
           )}
           {walls}

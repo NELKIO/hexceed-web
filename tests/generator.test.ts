@@ -131,4 +131,29 @@ describe('generator', () => {
       expect(solveLevel(L).solved).toBe(true);
     }
   });
+
+  it('endless enforces the rating of each mode; easy is numbers and walls', () => {
+    const range = { easy: [1, 2], medium: [3, 5], hard: [5, 10], expert: [7, 10] } as const;
+    for (const d of ['easy', 'medium', 'hard', 'expert'] as const)
+      for (const seed of [1, 2]) {
+        const L = endlessLevel(seed, d);
+        expect(L.diff!, `${d} ${seed}`).toBeGreaterThanOrEqual(range[d][0]);
+        expect(L.diff!, `${d} ${seed}`).toBeLessThanOrEqual(range[d][1]);
+        expect(L.id).toBe(`endless-${d}-${seed}`);
+        if (d === 'easy') for (const c of L.cells) expect([undefined, 'num']).toContain(c.clue?.k);
+      }
+    expect(JSON.stringify(endlessLevel(3, 'hard'))).toBe(JSON.stringify(endlessLevel(3, 'hard')));
+  });
+
+  it('daily can be restricted to unlocked mechanics', () => {
+    const allowed: MechanicId[] = ['basic', 'counter', 'fog', 'walls', 'line', 'radius'];
+    const L = dailyLevel('2026-12-24', allowed);
+    expect(L.id).toBe('daily-2026-12-24');
+    expect(solveLevel(L).solved).toBe(true);
+    for (const c of L.cells) if (c.clue) expect(['num', 'line', 'radius']).toContain(c.clue.k);
+    expect(L.links ?? []).toHaveLength(0);
+    expect(L.zones ?? []).toHaveLength(0);
+    expect(JSON.stringify(dailyLevel('2026-12-24', allowed))).toBe(JSON.stringify(L));
+    expect(dailyLevel('2026-12-24').diff!).toBeGreaterThanOrEqual(3);
+  });
 });

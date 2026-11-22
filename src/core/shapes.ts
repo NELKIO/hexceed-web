@@ -281,6 +281,38 @@ export interface ShapeOptions {
   want?: ShapeId;
   /** Widest allowed board in hex columns (phones: ~9 for regular levels, ~11 for showcases). */
   maxCols?: number;
+  /** Only plain, convex-looking outlines (first levels: nothing that could read as a hole). */
+  simple?: boolean;
+}
+
+const SIMPLE: ShapeId[] = ['hexagon', 'disk', 'triangle', 'rhombus', 'diamond', 'blob'];
+
+/** Missing hexes enclosed by the board (not reachable from outside its bounding box). */
+export function enclosedHoles(coords: [number, number][]): number {
+  const set = new Set(coords.map(([q, r]) => key(q, r)));
+  let minQ = Infinity, maxQ = -Infinity, minR = Infinity, maxR = -Infinity;
+  for (const [q, r] of coords) {
+    minQ = Math.min(minQ, q); maxQ = Math.max(maxQ, q);
+    minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+  }
+  minQ--; maxQ++; minR--; maxR++;
+  const seen = new Set<string>();
+  const st: [number, number][] = [[minQ, minR]];
+  seen.add(key(minQ, minR));
+  while (st.length) {
+    const [q, r] = st.pop()!;
+    for (const [dq, dr] of DIRS) {
+      const x = q + dq, y = r + dr;
+      if (x < minQ || x > maxQ || y < minR || y > maxR) continue;
+      const k = key(x, y);
+      if (seen.has(k) || set.has(k)) continue;
+      seen.add(k);
+      st.push([x, y]);
+    }
+  }
+  let holes = 0;
+  for (let q = minQ; q <= maxQ; q++) for (let r = minR; r <= maxR; r++) if (!set.has(key(q, r)) && !seen.has(key(q, r))) holes++;
+  return holes;
 }
 
 /** Number of hex columns (distinct q). */
@@ -291,7 +323,7 @@ export function columns(coords: [number, number][]): number {
 /** A board outline of about `size` hexes, aspect ratio (width / height) 0.6..1.2, portrait-friendly. */
 export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [number, number][]; shape: ShapeId } {
   const gaps = o.gaps || !!o.islands;
-  const pool = SHAPES.filter((s) => s.minSize <= size && (gaps || !s.gaps) && (!o.islands || s.multi || !s.gaps));
+  const pool = SHAPES.filter((s) => s.minSize <= size && (gaps || !s.gaps) && (!o.islands || s.multi || !s.gaps) && (!o.simple || SIMPLE.includes(s.id)));
   for (let tries = 0; tries < 14; tries++) {
     let def: ShapeDef | undefined = tries < 3 && o.want ? SHAPES.find((s) => s.id === o.want) : undefined;
     if (!def) {
@@ -321,6 +353,7 @@ export function makeShape(rng: Rng, size: number, o: ShapeOptions): { coords: [n
       if (aspect(coords) <= 1.0 && columns(coords) <= maxCols) break;
     }
     if (o.islands && components(coords).length < 2) continue;
+    if (!gaps && enclosedHoles(coords) > 0) continue; // no holes on boards without gaps
     const ar = aspect(coords);
     const tol = Math.max(3, size * 0.25);
     if (coords.length >= 4 && Math.abs(coords.length - size) <= tol && ar >= 0.45 && ar <= 1.05 && (columns(coords) <= maxCols || size < 12)) return { coords, shape: def.id };

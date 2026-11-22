@@ -1,7 +1,7 @@
 // Derives render props from the game state (phase-, fog- and big-cell-aware).
 
 import { isLocked, knownVals, lockRemaining, type Game } from '../../core/game';
-import { isResolved, linkConstraint, zoneConstraint, type Board, type Constraint } from '../../core/rules';
+import { effectiveClue, isResolved, linkConstraint, ray, zoneConstraint, type Board, type Constraint } from '../../core/rules';
 import { CellState } from '../../core/types';
 import type { CellProps, Enter } from './Cell';
 import { edgeSegment, linkCurve, S, zoneBadge, type Layout } from './geometry';
@@ -209,6 +209,20 @@ export function cellProps(g: Game, pre: Pre, layout: Layout, fx: FxState, vals =
       enter: fx.enter[i],
       delay: fx.delay[i],
     });
+  }
+  return out;
+}
+
+/** Ray clue: the path each arrow travels (cell centres in order, starting at the clue) — drawn while highlighted. */
+export function rayPaths(g: Game, layout: Layout, i: number): [number, number][][] {
+  const ph = phaseOf(g);
+  const clue = effectiveClue(g.board, i, ph);
+  if (!clue || clue.k !== 'line') return [];
+  const out: [number, number][][] = [];
+  for (const d of clue.dirs ?? [0]) {
+    const cells = ray(g.board, i, d, ph);
+    if (!cells.length) continue;
+    out.push([layout.px[i], ...cells.map((j) => layout.px[j])]);
   }
   return out;
 }

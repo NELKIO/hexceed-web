@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { PieceIcon, PieceLogo } from './art/Piece';
 
 type P = JSX.SVGAttributes<SVGSVGElement>;
 
@@ -70,16 +71,8 @@ export const IconTarget = (p: P) => base([<path d="M12 3.5l7.4 4.25v8.5L12 20.5l
 export const IconOpen = (p: P) =>
   base([<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />, <path d="M9 12.5l2 2 4-4.5" />], p, 2.2);
 
-/** Faceted crystal. */
-export const IconGem = (p: P) =>
-  base(
-    [
-      <path d="M3.5 9.5L7.5 4.5h9l4 5L12 20.5z" fill="currentColor" fill-opacity="0.18" />,
-      <path d="M3.5 9.5h17M9.5 4.5L8 9.5l4 11 4-11-1.5-5" />,
-    ],
-    p,
-    2,
-  );
+/** The hidden object (theme art lives in ui/art/Piece.tsx). */
+export const IconGem = (p: P) => <PieceIcon {...p} />;
 
 export function IconStar({ filled = true, ...p }: P & { filled?: boolean }) {
   return (
@@ -95,26 +88,6 @@ export function IconStar({ filled = true, ...p }: P & { filled?: boolean }) {
   );
 }
 
-/** Logo mark: a glowing hex with a crystal inside. */
-export function LogoMark(p: P) {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true" {...p}>
-      <defs>
-        <linearGradient id="lg-hex" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#9b6cff" />
-          <stop offset="1" stop-color="#1fc8b5" />
-        </linearGradient>
-        <linearGradient id="lg-gem" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#ffffff" />
-          <stop offset="1" stop-color="#e6ddff" />
-        </linearGradient>
-      </defs>
-      <path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="url(#lg-hex)" />
-      <path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="2" />
-      <path d="M19 27l6.5-8h13L45 27 32 47z" fill="url(#lg-gem)" />
-      <path d="M19 27h26M25.5 19l3 8L32 47l3.5-20 3-8" fill="none" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="1.6" stroke-linejoin="round" />
-      <path d="M22.5 26l3.6-4.5 1.6 4.5z" fill="#fff" />
-    </svg>
-  );
-}
+/** Logo mark (theme art lives in ui/art/Piece.tsx). */
+export const LogoMark = (p: P) => <PieceLogo {...p} />;
 export const IconSpark = (p: P) => base([<path d="M10.5 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z" />, <path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" />], p);

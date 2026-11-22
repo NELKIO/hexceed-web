@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { getLang, plural, t } from '../../i18n';
 import { navigate } from '../../router';
 import { sfx, unlockAudio } from '../../audio/sfx';
@@ -8,9 +8,11 @@ import { IconCalendar, IconGear, IconHelp, IconHexes, IconInfinity, IconPlay, Ic
 import { HeroBoard } from '../components/HeroBoard';
 import { StatsSheet } from './Stats';
 import { campaignStats, continueTarget } from '../progress';
+import { applyUpdate, useUpdateReady } from '../pwa';
+import { loadBest } from '../../storage';
 import { WORLDS } from '../../levels';
 import { dailyNumber, dailyStreak, loadDaily } from '../../storage';
-import { todayISO } from '../engine';
+import { pregenDaily, todayISO } from '../engine';
 import { useSettings } from '../settings';
 
 function Card({ icon, title, sub, tone, onClick, badge }: { icon: JSX.Element; title: string; sub: string; tone: string; onClick: () => void; badge?: ComponentChildren }) {
@@ -39,11 +41,25 @@ export function MenuScreen() {
   const streak = dailyStreak(today);
   const dailyNo = t('mf_dailyNoShort', { n: dailyNumber(today) });
   const lang = getLang();
+  const update = useUpdateReady();
+  // today's puzzle is generated while the player looks at the menu, so it opens instantly
+  useEffect(() => pregenDaily(), []);
+  // campaign tile: the world in progress, "Мир 1 · 3/12"
+  const cw = cont ? WORLDS[cont.world] : WORLDS[0];
+  const best = loadBest();
+  const cwDone = cw ? cw.levels.filter((id) => best[id]).length : 0;
+  const campSub = cw ? `${t('world', { n: (cont?.world ?? 0) + 1 })} · ${cwDone}/${cw.levels.length}` : '';
   const contSub = cont ? t('playSub', { world: WORLDS[cont.world]?.title[lang] ?? '', n: cont.index + 1 }) : '';
   return (
     <div class="menu">
       <HexBackground />
       <div class="menu-shade" />
+      {update && (
+        <button class="update-bar" onClick={() => applyUpdate()}>
+          <span>{t('updateReady')}</span>
+          <b>{t('updateApply')}</b>
+        </button>
+      )}
       <div class="menu-inner">
         <div class="brand">
           <LogoMark class="brand-mark" />
@@ -68,7 +84,7 @@ export function MenuScreen() {
               tone="violet"
               icon={<IconHexes />}
               title={t('campaign')}
-              sub={t('mf_campaignSub', { done: st.done, total: st.total, levels: plural(st.total, 'mf_lvlOf1', 'mf_lvlOf5', 'mf_lvlOf5') })}
+              sub={campSub}
               badge={
                 st.stars ? (
                   <span class="mc-stars" aria-label={t('mf_starsBadge', { n: st.stars, stars: plural(st.stars, 'mf_star1', 'mf_star2', 'mf_star5') })}>

@@ -22,8 +22,12 @@ export type Target = { t: 'cell'; i: number } | { t: 'badge'; b: Badge } | { t: 
 
 export interface BoardHandle {
   fit(animate?: boolean): void;
+  /** Ease out to the whole board. */
+  fitAll(ms?: number): void;
   /** Pan just enough to bring cell i on screen (no-op when it already is). */
   show(i: number): void;
+  /** When none of the cells is on screen, pan to the first one. */
+  showAny(cells: number[]): void;
   cellEl(i: number): SVGGElement | null;
   spawn(kind: ParticleKind, i: number, delay?: number): void;
   spawnAt(kind: ParticleKind, x: number, y: number, delay?: number): void;
@@ -49,6 +53,10 @@ interface Props extends Omit<BoardLayerProps, 'press'> {
   focus?: Uint8Array;
   /** Board point to keep in view when the framed area is larger than the screen (last move). */
   anchor?: [number, number] | null;
+  /** Cells that must be fully on screen in the initial framing (start / opened / locks). */
+  must?: Uint8Array;
+  /** Called once when cells in sight first extend beyond the screen (pan hint). */
+  onOverflow?(): void;
   onTap(t: Target, e: { mouse: boolean }): void;
   onDoubleTap(t: Target): void;
   onLong(t: Target): void;
@@ -95,16 +103,24 @@ function focusBox(L: Layout, focus: Uint8Array | undefined, margin: boolean): Bo
   return { minX, minY, maxX, maxY };
 }
 
-/** Smallest comfortable hex circumradius (px): phones keep hexes thumb-sized and pan instead. */
+/** Smallest comfortable hex circumradius (px) when the board is wider than the screen. */
 function minCellPx(): number {
   try {
     const coarse = matchMedia('(pointer: coarse)').matches;
-    const short = Math.min(innerWidth, innerHeight);
-    if (coarse || short < 520) return innerHeight < 500 ? 38 : 42;
+    if (coarse || Math.min(innerWidth, innerHeight) < 520) return 25;
   } catch {
     /* ignore */
   }
-  return 24;
+  return 22;
+}
+
+/** Bounding box of the "must see" cells (start / opened / locks), or null. */
+function mustBox(L: Layout, must: Uint8Array | undefined): Box | null {
+  if (!must) return null;
+  const B = focusBox(L, must, false);
+  let any = false;
+  for (let i = 0; i < must.length; i++) if (must[i]) any = true;
+  return any ? B : null;
 }
 
 const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
@@ -133,7 +149,12 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     const W = el.clientWidth, H = el.clientHeight;
     const on = [B.minX * v.k + v.tx < -6, B.maxX * v.k + v.tx > W + 6, B.minY * v.k + v.ty < -6, B.maxY * v.k + v.ty > H + 6];
     for (let k = 0; k < 4; k++) (box.children[k] as HTMLElement | undefined)?.classList.toggle('on', on[k]);
+    if (!overflowed.current && on.some(Boolean) && pr.current.onOverflow) {
+      overflowed.current = true;
+      pr.current.onOverflow();
+    }
   };
+  const overflowed = useRef(false);
 
   const apply = () => {
     const v = view.current;
@@ -142,73 +163,79 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     edgeHints();
   };
 
+  /**
+   * Camera framing.
+   * - Frames the cells in sight (+ one cell of margin), never larger than `maxCell`.
+   * - Portrait phones fit the WIDTH (hexes >= ~27 px) and scroll vertically; elsewhere both axes fit.
+   * - Hard rule for the initial framing: start / opened cells and locks (`must`) are fully on screen
+   *   (the zoom drops below the comfort minimum if that is the only way).
+   * - Later framings (fog lifting) keep the current spot unless the last move would be off screen.
+   */
   const computeFit = (initial = false) => {
     const el = wrap.current;
     if (!el) return null;
     const W = el.clientWidth, H = el.clientHeight;
     if (!W || !H) return null;
     const L = pr.current.layout;
-    const pad = pr.current.pad ?? 18;
+    const pad = pr.current.pad ?? 14;
     const maxCell = pr.current.maxCell ?? 54;
     const pb = pr.current.padBottom ?? 0;
+    const Hh = H - pb;
+    const portrait = Hh > W * 1.15;
     const B = focusBox(L, pr.current.focus, true);
+    if (portrait) {
+      // portrait phones: fit the cells in sight edge to edge horizontally (no side margin)
+      const B0 = focusBox(L, pr.current.focus, false);
+      B.minX = B0.minX - S * 0.15;
+      B.maxX = B0.maxX + S * 0.15;
+    }
     const bw = B.maxX - B.minX, bh = B.maxY - B.minY;
-    let k = Math.min((W - pad * 2) / bw, (H - pad * 2 - pb) / bh, maxCell / S);
     const kMin = Math.min(minCellPx(), maxCell) / S;
+    const kW = (W - pad * 2) / bw, kH = (Hh - pad * 2) / bh;
+    let k = Math.min(portrait ? kW : Math.min(kW, kH), maxCell / S);
+    if (k < kMin) k = kMin;
+    const M = initial ? mustBox(L, pr.current.must) : null;
+    if (M) {
+      const km = Math.min((W - pad * 2) / (M.maxX - M.minX + 8), (Hh - pad * 2) / (M.maxY - M.minY + 8));
+      if (k > km) k = km;
+    }
+    const halfW = (W / 2 - pad) / k, halfH = (Hh / 2 - pad) / k;
     let cx = (B.minX + B.maxX) / 2, cy = (B.minY + B.maxY) / 2;
-    if (k < kMin) {
-      // too big for the screen at a comfortable size: keep the size, frame the latest action
-      k = kMin;
+    const overX = bw / 2 > halfW, overY = bh / 2 > halfH;
+    if (overX || overY) {
       const v = view.current;
-      const centre: [number, number] = [(W / 2 - v.tx) / v.k, ((H - pb) / 2 - v.ty) / v.k];
-      let a = initial ? pr.current.anchor ?? null : centre;
-      const an = pr.current.anchor;
-      if (!initial && an) {
-        // follow the latest move only when it would end up off screen
-        const sx = an[0] * k + (W / 2 - centre[0] * k), sy = an[1] * k + ((H - pb) / 2 - centre[1] * k);
-        const m = S * k * 1.2;
-        if (sx < m || sx > W - m || sy < m || sy > H - pb - m) a = an;
+      const centre: [number, number] = [(W / 2 - v.tx) / v.k, (Hh / 2 - v.ty) / v.k];
+      let ref: [number, number] = centre;
+      if (initial) ref = M ? [(M.minX + M.maxX) / 2, (M.minY + M.maxY) / 2] : pr.current.anchor ?? [cx, cy];
+      else {
+        const an = pr.current.anchor;
+        if (an) {
+          // follow the latest move only when it would end up off screen
+          const sx = (an[0] - centre[0]) * k + W / 2, sy = (an[1] - centre[1]) * k + Hh / 2;
+          const m = S * k * 1.2;
+          if (sx < m || sx > W - m || sy < m || sy > Hh - m) ref = an;
+        }
       }
-      const halfW = (W / 2 - pad) / k, halfH = ((H - pb) / 2 - pad) / k;
-      const fx = (x: number) => (bw / 2 > halfW ? clamp(x, B.minX + halfW, B.maxX - halfW) : cx);
-      const fy = (y: number) => (bh / 2 > halfH ? clamp(y, B.minY + halfH, B.maxY - halfH) : cy);
-      const focus = pr.current.focus;
-      if (initial && focus) {
-        // frame the spot that shows the most cells in sight whole, with as few cells cut by the
-        // screen edges as possible (ties: nearest to the start)
-        const ref = a ?? [cx, cy];
-        const vw = W / 2 / k, vh = (H - pb) / 2 / k;
-        const idx: number[] = [];
-        for (let i = 0; i < L.px.length; i++) if (focus[i]) idx.push(i);
-        let best = -Infinity, bestD = Infinity, bx = cx, by = cy;
-        for (const i of idx)
-          for (const ox of [-1.5, -0.75, 0, 0.75, 1.5])
-            for (const oy of [-1, 0, 1]) {
-              const ccx = fx(L.px[i][0] + ox * S), ccy = fy(L.px[i][1] + oy * INNER);
-              let score = 0;
-              for (const j of idx) {
-                const dx = Math.abs(L.px[j][0] - ccx), dy = Math.abs(L.px[j][1] - ccy);
-                if (dx + S <= halfW && dy + INNER <= halfH) score += 10;
-                else if (dx - S < vw && dy - INNER < vh) score -= 6;
-              }
-              const d = Math.hypot(ccx - ref[0], ccy - ref[1]);
-              if (score > best || (score === best && d < bestD)) {
-                best = score;
-                bestD = d;
-                bx = ccx;
-                by = ccy;
-              }
-            }
-        cx = bx;
-        cy = by;
-      } else if (a) {
-        cx = fx(a[0]);
-        cy = fy(a[1]);
+      if (overX) cx = clamp(ref[0], B.minX + halfW, B.maxX - halfW);
+      if (overY) cy = clamp(ref[1], B.minY + halfH, B.maxY - halfH);
+      if (M) {
+        // hard: the must-see box stays inside the screen
+        cx = clamp(cx, M.maxX + 4 - halfW, M.minX - 4 + halfW);
+        cy = clamp(cy, M.maxY + 4 - halfH, M.minY - 4 + halfH);
       }
     }
-    const tx = W / 2 - cx * k;
-    const ty = (H - pb) / 2 - cy * k;
-    return { k, tx, ty };
+    return { k, tx: W / 2 - cx * k, ty: Hh / 2 - cy * k };
+  };
+
+  /** Whole board on screen (end of a level). */
+  const fitAll = (ms = 600) => {
+    const el = wrap.current;
+    if (!el) return;
+    const L = pr.current.layout;
+    const pad = 16;
+    const W = el.clientWidth, H = el.clientHeight;
+    const k = Math.min((W - pad * 2) / L.w, (H - pad * 2) / L.h, (pr.current.maxCell ?? 54) / S);
+    animateTo({ k, tx: W / 2 - (L.minX + L.w / 2) * k, ty: H / 2 - (L.minY + L.h / 2) * k }, ms, true);
   };
 
   /** Zoom that shows the whole board (lower zoom limit). */
@@ -246,9 +273,14 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     animateTo(f, animate ? 320 : 0);
   };
 
-  /** Follow the fog lifting: ease to the new framing unless the user took over the camera. */
+  /**
+   * Follow the fog lifting: ease to the new framing. A pan does not stop this (the next move that
+   * lifts fog brings the camera along again); a pinch / wheel zoom in the last 3 s does.
+   */
+  const lastZoom = useRef(0);
   const follow = () => {
-    if (userMoved.current) return;
+    if (userMoved.current && performance.now() - lastZoom.current < 3000) return;
+    userMoved.current = false;
     const f = computeFit();
     if (!f) return;
     fitView.current = f;
@@ -256,13 +288,15 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     if (Math.abs(f.k - v.k) < 0.002 && Math.abs(f.tx - v.tx) < 1 && Math.abs(f.ty - v.ty) < 1) return;
     animateTo(f, 750, true);
   };
-  const userTook = () => {
+  const userTook = (zoom = false) => {
     userMoved.current = true;
+    if (zoom) lastZoom.current = performance.now();
     cancelAnimationFrame(anim.current);
   };
 
   useImperativeHandle(ref, () => ({
     fit,
+    fitAll,
     show: (i) => {
       const el = wrap.current;
       const p = pr.current.layout.px[i];
@@ -277,6 +311,21 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       if (sy < m) dy = m - sy;
       else if (sy > H - m) dy = H - m - sy;
       if (dx || dy) animateTo({ k: v.k, tx: v.tx + dx, ty: v.ty + dy }, 420, true);
+    },
+    showAny: (cells) => {
+      const el = wrap.current;
+      if (!el || !cells.length) return;
+      const v = view.current;
+      const W = el.clientWidth, H = el.clientHeight;
+      const on = cells.some((i) => {
+        const p = pr.current.layout.px[i];
+        if (!p) return false;
+        const sx = p[0] * v.k + v.tx, sy = p[1] * v.k + v.ty;
+        return sx > 0 && sx < W && sy > 0 && sy < H;
+      });
+      if (on) return;
+      const p = pr.current.layout.px[cells[0]];
+      if (p) animateTo({ k: v.k, tx: W / 2 - p[0] * v.k, ty: H / 2 - p[1] * v.k }, 500, true);
     },
     cellEl: (i) => cellEls.current[i] ?? null,
     spawn: (kind, i, delay = 0) => {
@@ -369,23 +418,35 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       clearTimeout(pressTimer);
       if (mode === 'press') pr.current.onPressEnd();
     };
-    const clampView = () => {
+    const clampK = () => {
       const v = view.current;
-      const L = pr.current.layout;
-      const W = el.clientWidth, H = el.clientHeight;
       const f = fitView.current;
       v.k = Math.max(Math.min(f.k, fullK()) * 0.8, Math.min(v.k, Math.max(f.k * 4, 2.4)));
-      const cx = (L.minX + L.w / 2) * v.k + v.tx;
-      const cy = (L.minY + L.h / 2) * v.k + v.ty;
-      const mx = Math.max(W / 2, (L.w * v.k) / 2), my = Math.max(H / 2, (L.h * v.k) / 2);
-      if (cx < W / 2 - mx) v.tx += W / 2 - mx - cx;
-      if (cx > W / 2 + mx) v.tx -= cx - (W / 2 + mx);
-      if (cy < H / 2 - my) v.ty += H / 2 - my - cy;
-      if (cy > H / 2 + my) v.ty -= cy - (H / 2 + my);
+    };
+    /** Panning stays on the board: an axis that fits is locked (centred), one that overflows
+     *  can move until its edge reaches the screen edge. */
+    const clampPan = () => {
+      const v = view.current;
+      const L = pr.current.layout;
+      const pad = 12;
+      const axis = (t: number, min: number, max: number, size: number) => {
+        const len = (max - min) * v.k;
+        if (len <= size - pad * 2) return size / 2 - ((min + max) / 2) * v.k;
+        return clamp(t, size - pad - max * v.k, pad - min * v.k);
+      };
+      v.tx = axis(v.tx, L.minX, L.maxX, el.clientWidth);
+      v.ty = axis(v.ty, L.minY, L.maxY, el.clientHeight);
     };
 
     const down = (e: PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2 && e.button !== 1) return;
+      // a primary pointer starts a fresh gesture: drop pointers whose "up" never arrived (a sheet
+      // opened mid-press, capture lost…), otherwise every later tap would look like a pinch
+      if (e.isPrimary && pts.size) {
+        pts.clear();
+        endPress();
+        mode = 'idle';
+      }
       const p = local(e);
       try {
         el.setPointerCapture(e.pointerId);
@@ -447,7 +508,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
         view.current.tx += dx;
         view.current.ty += dy;
         userTook();
-        clampView();
+        clampPan();
         apply();
       } else if (mode === 'pinch' && pts.size >= 2) {
         const [a, b] = [...pts.values()];
@@ -458,10 +519,11 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
         // keep the board point under the initial midpoint under the current midpoint
         const bx = (pinch0.mx - pinch0.tx) / pinch0.k, by = (pinch0.my - pinch0.ty) / pinch0.k;
         v.k = k;
-        clampView();
+        clampK();
         v.tx = mx - bx * v.k;
         v.ty = my - by * v.k;
-        userTook();
+        clampPan();
+        userTook(true);
         apply();
       }
     };
@@ -497,6 +559,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     };
 
     const cancel = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
       pts.delete(e.pointerId);
       endPress();
       if (pts.size === 0) mode = 'idle';
@@ -509,10 +572,11 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       const bx = (p.x - v.tx) / v.k, by = (p.y - v.ty) / v.k;
       const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0016));
       v.k *= f;
-      clampView();
+      clampK();
       v.tx = p.x - bx * v.k;
       v.ty = p.y - by * v.k;
-      userTook();
+      clampPan();
+      userTook(true);
       apply();
     };
 
@@ -528,6 +592,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', cancel);
+    el.addEventListener('lostpointercapture', cancel);
     el.addEventListener('pointerleave', leave);
     el.addEventListener('wheel', wheel, { passive: false });
     el.addEventListener('contextmenu', ctx);
@@ -537,6 +602,7 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', cancel);
+      el.removeEventListener('lostpointercapture', cancel);
       el.removeEventListener('pointerleave', leave);
       el.removeEventListener('wheel', wheel);
       el.removeEventListener('contextmenu', ctx);

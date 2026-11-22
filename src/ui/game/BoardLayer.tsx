@@ -7,6 +7,7 @@ import { Cell, type CellProps } from './Cell';
 import { edgeSegment, linkCurve, OUTLINE_PATH, S, zoneBadge, zoneOutline, type Layout } from './geometry';
 import { DIRS, toPixel } from '../../core/hex';
 import { CellState } from '../../core/types';
+import { PieceHalo } from '../art/Piece';
 import { useMemo } from 'preact/hooks';
 import type { WallSeg } from './view';
 
@@ -18,6 +19,8 @@ export interface Highlight {
   srcPoint?: [number, number];
   tint: number; // 0..3 pinned palette, 9 = hover, 8 = hint
   key: string;
+  /** Ray clues: the line(s) the arrow travels along (board units). */
+  rays?: [number, number][][];
 }
 
 export interface BoardLayerProps {
@@ -32,6 +35,8 @@ export interface BoardLayerProps {
   hover: number;
   press: { cell: number; toGem: boolean; key: number } | null;
   staticWalls: string;
+  /** Win: lights brighten in a wave from this board point. */
+  glowWave?: [number, number] | null;
   /** Per-wall segments; when given, walls deep in the fog are drawn faint. */
   wallSegs?: WallSeg[];
   portals: [number, number, number][];
@@ -145,6 +150,19 @@ function Zones({ board, layout, values, done }: { board: Board; layout: Layout; 
   );
 }
 
+/** The soft light every lit (marked) cell spills onto its neighbours' edges. */
+function Halos({ cells, wave }: { cells: CellProps[]; wave: [number, number] | null }) {
+  const lit = cells.filter((c) => c.st === CellState.Marked);
+  if (!lit.length) return null;
+  return (
+    <g class={'halos' + (wave ? ' wave' : '')}>
+      {lit.map((c) => (
+        <PieceHalo key={c.i} x={c.x} y={c.y} r={S * 1.42} delay={wave ? Math.round(Math.hypot(c.x - wave[0], c.y - wave[1]) * 1.3) : undefined} />
+      ))}
+    </g>
+  );
+}
+
 let maskSeq = 0;
 
 /**
@@ -194,6 +212,9 @@ function Highlights({ layout, highlights }: { layout: Layout; highlights: Highli
             const [x, y] = layout.px[i];
             return <path key={i} d={layout.outline[i] ?? OUTLINE_PATH} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} class="hl-cell" />;
           })}
+          {h.rays?.map((pts, k) => (
+            <path key={'r' + k} class="hl-ray" d={'M' + pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')} />
+          ))}
           {h.src >= 0 && (
             <circle class="hl-src" cx={layout.px[h.src][0]} cy={layout.px[h.src][1]} r={S * 0.78} />
           )}
@@ -222,6 +243,7 @@ export function BoardLayer(p: BoardLayerProps) {
           <Cell key={c.i} {...c} />
         ))}
       </g>
+      <Halos cells={p.cells} wave={p.glowWave ?? null} />
       {p.wallSegs ? <Walls {...(([d, dim]) => ({ d, dim }))(splitWalls(p.wallSegs, p.cells))} /> : <Walls d={p.staticWalls} />}
       <Portals board={p.board} portals={p.portals} />
       <Zones board={p.board} layout={layout} values={p.zoneValues} done={p.zoneDone} />

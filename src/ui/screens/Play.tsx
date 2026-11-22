@@ -5,7 +5,9 @@ import { goBack, navigate } from '../../router';
 import { getLevel, isKnownLevel, levelPos, nextLevelId, useCampaign, WORLDS, worldUnlocked } from '../../levels';
 import { GameView } from '../game/GameView';
 import { addEndlessTotals, bumpEndless, dailyNumber, dailyStreak, findProgress, loadBest, loadEndlessStats, loadProgress, saveDaily, saveLast } from '../../storage';
-import { DIFFICULTIES, makeDaily, makeEndless, todayISO, type Difficulty } from '../engine';
+import { checkLevel, DIFFICULTIES, makeDaily, makeEndless, todayISO, type Difficulty } from '../engine';
+import { showNotice } from '../notice';
+import { IconRestart } from '../icons';
 import { TopBar, fmtTime } from '../components/ui';
 import { LogoMark, IconArrow, IconPlay } from '../icons';
 import { sfx } from '../../audio/sfx';
@@ -13,18 +15,53 @@ import { useSettings } from '../settings';
 
 const gemCount = (l: Level) => l.cells.reduce((s, c) => s + (c.gem ? 1 : 0), 0);
 
-function Loading({ back, text }: { back: string; text?: string }) {
+function Loading({ back, text, retry }: { back: string; text?: string; retry?: () => void }) {
   return (
     <div class="screen center">
       <div class="screen-inner">
         <TopBar onBack={() => goBack(back)} />
         <div class="loading">
-          <LogoMark class="spinner" />
-          <p>{text ?? t('loading')}</p>
+          <LogoMark class={retry ? 'spinner stopped' : 'spinner'} />
+          <p>{retry ? t('genFailed') : text ?? t('loading')}</p>
+          {retry && (
+            <button class="btn cta" onClick={() => { sfx.tick(); retry(); }}>
+              <IconRestart />
+              <span>{t('retry')}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * A generated level: the saved run's own level when there is one (validated), else generated.
+ * A worker timeout ends in a "try again" state instead of blocking the main thread.
+ */
+function useGenerated(storeId: string, deps: unknown[], make: () => Promise<Level>): { level: Level | null; failed: boolean; retry: () => void } {
+  const [level, setLevel] = useState<Level | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setLevel(null);
+    setFailed(false);
+    const saved = checkLevel(loadProgress(storeId)?.level);
+    if (saved) setLevel({ ...saved, id: storeId });
+    else
+      make().then(
+        (l) => alive && setLevel(l),
+        (e) => {
+          console.error('[hexlume] generation failed', e);
+          if (alive) setFailed(true);
+        },
+      );
+    return () => {
+      alive = false;
+    };
+  }, [...deps, round]);
+  return { level, failed, retry: () => setRound((r) => r + 1) };
 }
 
 export function PlayScreen({ params }: { params: string[] }) {
@@ -36,6 +73,8 @@ export function PlayScreen({ params }: { params: string[] }) {
     if (level) saveLast(id);
   }, [id, !!level]);
   if (!level && !loaded && isKnownLevel(id)) return <Loading back="/worlds" text={t('mf_loadingLevels')} />;
+  const lockedPos = level ? levelPos(id) : undefined;
+  if (lockedPos && !worldUnlocked(lockedPos.world, (x) => !!loadBest()[x])) return <LockedRedirect />;
   if (!level) {
     return (
       <div class="screen">
@@ -69,21 +108,20 @@ export function PlayScreen({ params }: { params: string[] }) {
   );
 }
 
+/** A deep link to a level of a world that is still locked: back to the map, with a word why. */
+function LockedRedirect() {
+  useEffect(() => {
+    showNotice(t('levelLocked'));
+    navigate('/worlds', true);
+  }, []);
+  return null;
+}
+
 export function DailyScreen() {
   useSettings();
   const date = todayISO();
-  const [level, setLevel] = useState<Level | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const id = `daily-${date}`;
-    const saved = loadProgress(id);
-    if (saved?.level) setLevel(saved.level as Level);
-    else void makeDaily(date).then((l) => alive && setLevel(l));
-    return () => {
-      alive = false;
-    };
-  }, [date]);
-  if (!level) return <Loading back="/" />;
+  const { level, failed, retry } = useGenerated(`daily-${date}`, [date], () => makeDaily(date));
+  if (!level) return <Loading back="/" retry={failed ? retry : undefined} />;
   const [y, m, d] = date.split('-');
   const no = dailyNumber(date);
   return (
@@ -167,19 +205,8 @@ export function EndlessScreen({ params }: { params: string[] }) {
 }
 
 function EndlessPlay({ diff, seed }: { diff: Difficulty; seed: string }) {
-  const [level, setLevel] = useState<Level | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const id = `endless-${diff}-${seed}`;
-    setLevel(null);
-    const saved = loadProgress(id);
-    if (saved?.level) setLevel(saved.level as Level);
-    else void makeEndless(seed, diff).then((l) => alive && setLevel(l));
-    return () => {
-      alive = false;
-    };
-  }, [diff, seed]);
-  if (!level) return <Loading back="/endless" />;
+  const { level, failed, retry } = useGenerated(`endless-${diff}-${seed}`, [diff, seed], () => makeEndless(seed, diff));
+  if (!level) return <Loading back="/endless" retry={failed ? retry : undefined} />;
   return (
     <GameView
       key={level.id}

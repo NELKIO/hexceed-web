@@ -20,14 +20,27 @@ export function setVibration(on: boolean): void {
   vibrate = on;
 }
 
+/** Mono decaying-noise impulse (short: building it is cheap, and it is built off the first tap). */
 function makeImpulse(c: Ctx, seconds: number, decay: number): AudioBuffer {
   const len = Math.floor(c.sampleRate * seconds);
-  const buf = c.createBuffer(2, len, c.sampleRate);
-  for (let ch = 0; ch < 2; ch++) {
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-  }
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
   return buf;
+}
+
+/** Fill the reverb in idle time after audio starts (it used to be a long task on the first tap). */
+function buildReverbLater(c: Ctx, conv: ConvolverNode): void {
+  const run = () => {
+    try {
+      conv.buffer = makeImpulse(c, 0.8, 2.6);
+    } catch {
+      /* no reverb */
+    }
+  };
+  const w = window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
+  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 2000 });
+  else setTimeout(run, 300);
 }
 
 function ensure(): Ctx | null {
@@ -53,11 +66,11 @@ function ensure(): Ctx | null {
     dry.gain.value = 1;
     dry.connect(master);
     const conv = ctx.createConvolver();
-    conv.buffer = makeImpulse(ctx, 1.8, 3.2);
     wet = ctx.createGain();
-    wet.gain.value = 0.32;
+    wet.gain.value = 0.4;
     wet.connect(conv).connect(master);
-    const len = Math.floor(ctx.sampleRate * 0.5);
+    buildReverbLater(ctx, conv);
+    const len = Math.floor(ctx.sampleRate * 0.25);
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
@@ -189,14 +202,16 @@ export const sfx = {
   cascade(i: number): void {
     bar(penta(4 + (i % 8)), 0.12, i * 0.055, 0.6);
   },
+  /** A light comes on: a soft warm swell with a little shimmer (pitch climbs in quick runs). */
   gem(): void {
     const now = performance.now();
     gemStreak = now - lastGem < 1600 ? Math.min(gemStreak + 1, 6) : 0;
     lastGem = now;
-    const f = penta(10 + gemStreak);
-    bell(f, 0.14);
-    tone(f * 2.5, { vol: 0.04, decay: 0.12, delay: 0.04, reverb: 0.6 });
-    noise({ vol: 0.05, decay: 0.12, freq: 7000, q: 0.8, reverb: 0.5 });
+    const f = penta(5 + gemStreak);
+    tone(f, { vol: 0.16, attack: 0.035, decay: 0.55, reverb: 0.5 });
+    tone(f * 2, { vol: 0.05, type: 'triangle', attack: 0.05, decay: 0.45, reverb: 0.6 });
+    tone(f * 3.01, { vol: 0.025, attack: 0.08, decay: 0.35, delay: 0.03, reverb: 0.7, detune: 6 });
+    noise({ vol: 0.025, decay: 0.3, freq: 6500, q: 0.6, reverb: 0.6, delay: 0.02 });
   },
   mistake(): void {
     tone(150, { vol: 0.55, decay: 0.26, slide: 0.42, type: 'sine' });
@@ -247,10 +262,15 @@ export const sfx = {
   star(i: number): void {
     bell(penta(10 + i * 2), 0.12);
   },
+  /** Warm rising arpeggio, then a soft glowing chord. */
   win(): void {
-    const seq = [0, 2, 4, 5, 7, 9, 10];
-    seq.forEach((s, i) => bar(penta(s + 3), 0.16, i * 0.075, 0.7));
-    [12, 14, 17].forEach((s) => bell(penta(s), 0.07, seq.length * 0.075 + 0.05));
+    const seq = [0, 2, 3, 5, 7, 8, 10];
+    seq.forEach((s, i) => {
+      tone(penta(s), { vol: 0.12, type: 'triangle', attack: 0.012, decay: 0.5, delay: i * 0.085, reverb: 0.45 });
+      tone(penta(s) * 2, { vol: 0.03, attack: 0.02, decay: 0.3, delay: i * 0.085, reverb: 0.5 });
+    });
+    const t = seq.length * 0.085 + 0.04;
+    [10, 12, 14].forEach((s, k) => tone(penta(s), { vol: 0.07, attack: 0.09, decay: 1.1, delay: t + k * 0.02, reverb: 0.8 }));
   },
 };
 

@@ -58,7 +58,7 @@
   font-size: 44px;
   letter-spacing: -0.035em;
   line-height: 1;
-  background: linear-gradient(120deg, var(--ink) 20%, var(--gem-1) 60%, var(--gem-2) 95%);
+  background: linear-gradient(120deg, var(--ink) 30%, #e07a22 70%, #f2a03a 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -632,4 +632,32 @@
     margin-bottom: -22px;
     padding-bottom: 18px;
   }
+}
+
+/* a new version is installed: offered on the menu only */
+.update-bar {
+  position: fixed;
+  z-index: 20;
+  left: 50%;
+  top: calc(var(--safe-top) + 10px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px 9px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13.5px;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.4s var(--ease-spring);
+  white-space: nowrap;
+}
+
+.update-bar b {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--cta);
+  color: #fff;
 }

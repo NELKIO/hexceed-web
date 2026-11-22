@@ -23,11 +23,20 @@
   --accent-2: #ffb347;
   --accent-ink: #ffffff;
   --cta: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  --gem-1: #8b5cf6;
-  --gem-2: #1fc2b0;
-  --gem-grad: linear-gradient(135deg, var(--gem-1), var(--gem-2));
+  /* the light («огонёк»): warm glow on cream; UI accents in a calm indigo */
+  --gem-1: #f39a3a;
+  --gem-2: #ffd27a;
+  --gem-grad: linear-gradient(135deg, #ffd98a, #f7a547);
+  --on-gem: #4a2a06;
+  --glow-1: #ffc35a;
+  --glow-2: #f58a2c;
+  --lit-c: #fff4d4;
+  --lit-m: #ffcd70;
+  --lit-e: #f3973a;
+  --core-e: #ffe2a0;
+  --accent-ui: #5a62c8;
 
-  --violet: #8b5cf6;
+  --violet: #5a62c8;
   --teal: #16b3a3;
   --amber: #f59e0b;
   --pink: #ec5f97;
@@ -37,9 +46,9 @@
 
   /* board */
   --board-bg: transparent;
-  --hid-top: #dfe3fd;
-  --hid-bot: #c8cff7;
-  --hid-edge: #a9b1e8;
+  --hid-top: #d3d9f7;
+  --hid-bot: #bcc5ef;
+  --hid-edge: #99a4dc;
   --hid-hi: rgba(255, 255, 255, 0.85);
   --open-face: #fffdf9;
   --open-stroke: #ece4d7;
@@ -56,16 +65,16 @@
   --dot: #e6508f;
   --swirl: #11a597;
   --island: #2f9e6f;
-  --chain: #d98a12;
+  --chain: #b0537a;
   --portal: #18b9c9;
   --fog: rgba(110, 95, 160, 0.28);
   --eye: #1aa596;
   --mod: #16b3a3;
-  --gem-edge: #5b3fc0;
-  --lock-top: #ffe6bf;
-  --lock-bot: #ffd08c;
-  --lock-edge: #e4a24f;
-  --lock-ink: #b86a12;
+  --gem-edge: #d07a26;
+  --lock-top: #e6ecf5;
+  --lock-bot: #ccd6e6;
+  --lock-edge: #93a2bd;
+  --lock-ink: #4d5f82;
   --wall: #3a3354;
   --zone: #7b61f0;
   --zone-fill: rgba(123, 97, 240, 0.13);
@@ -75,7 +84,7 @@
   --hl-2: #ec5f97;
   --hl-3: #4f7cff;
   --hl-hover: #7b61f0;
-  --hint: #ffae00;
+  --hint: #ff6b4a;
   --dust: #cfc4dc;
 
   /* menu background */
@@ -112,8 +121,18 @@
   --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3), 0 28px 56px -20px rgba(0, 0, 0, 0.7);
   --accent-1: #ff6f61;
   --accent-2: #ffad42;
-  --gem-1: #9d73ff;
-  --gem-2: #22d3bf;
+  --gem-1: #ffad4a;
+  --gem-2: #ffd98a;
+  --gem-grad: linear-gradient(135deg, #ffd27a, #f59a3a);
+  --on-gem: #3d2204;
+  --glow-1: #ffbf55;
+  --glow-2: #ff9a3c;
+  --lit-c: #fff1c8;
+  --lit-m: #ffc867;
+  --lit-e: #e98a2d;
+  --core-e: #ffd98c;
+  --accent-ui: #8f96f0;
+  --violet: #8f96f0;
 
   --hid-top: #474b88;
   --hid-bot: #383b72;
@@ -134,16 +153,16 @@
   --dot: #ff7fb0;
   --swirl: #2fd0bd;
   --island: #4fd39a;
-  --chain: #ffb53d;
+  --chain: #f08ab4;
   --portal: #3fe0f0;
   --fog: rgba(205, 195, 245, 0.3);
   --eye: #2fd0bd;
   --mod: #2fd0bd;
-  --gem-edge: #3a2a86;
-  --lock-top: #6c5530;
-  --lock-bot: #5a4424;
-  --lock-edge: #3a2b14;
-  --lock-ink: #ffcf7a;
+  --gem-edge: #9a5518;
+  --lock-top: #4b5875;
+  --lock-bot: #3c4762;
+  --lock-edge: #232a3d;
+  --lock-ink: #c9d5ee;
   --wall: #ece6ff;
   --zone: #a48cff;
   --zone-fill: rgba(164, 140, 255, 0.12);
@@ -218,9 +237,20 @@ button {
   cursor: pointer;
 }
 
+:focus {
+  outline: none;
+}
+
+/* keyboard focus only (no ring after a tap, also for autoFocus buttons on touch) */
 :focus-visible {
-  outline: 2.5px solid var(--violet);
+  outline: 2.5px solid var(--accent-ui);
   outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  :focus-visible {
+    outline: none;
+  }
 }
 
 h1,
@@ -761,4 +791,21 @@ h3 {
   .grab {
     display: none;
   }
+}
+
+/* the light as a UI icon (counter chip, mode switch, stats…) */
+.piece-ic .pi-halo {
+  fill: #ffb347;
+  opacity: 0.28;
+}
+
+.piece-ic .pi-ring {
+  fill: #ffc65c;
+  opacity: 0.65;
+}
+
+.piece-ic .pi-core {
+  fill: #fff7df;
+  stroke: #f29237;
+  stroke-width: 1.2;
 }

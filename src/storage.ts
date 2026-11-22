@@ -83,7 +83,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   lang: 'auto',
-  theme: 'auto',
+  theme: 'light',
   volume: 0.7,
   vibration: true,
   leftHanded: false,
@@ -93,9 +93,27 @@ export const DEFAULT_SETTINGS: Settings = {
   autoZero: true,
 };
 
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const oneOf = <T extends string | number>(v: unknown, list: readonly T[], d: T): T => (list.includes(v as T) ? (v as T) : d);
+const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
+
+/** Settings with every field checked (a hand-edited or old value never breaks the app). */
 export function loadSettings(): Settings {
-  const s = read<Partial<Settings>>('settings', {});
-  return { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
+  const s = read<unknown>('settings', {});
+  const o = isObj(s) ? s : {};
+  const D = DEFAULT_SETTINGS;
+  return {
+    lang: oneOf(o.lang, ['auto', 'ru', 'en'] as const, D.lang),
+    theme: oneOf(o.theme, ['auto', 'light', 'dark'] as const, D.theme),
+    volume: num(o.volume) ? Math.max(0, Math.min(1, o.volume)) : D.volume,
+    vibration: bool(o.vibration, D.vibration),
+    leftHanded: bool(o.leftHanded, D.leftHanded),
+    colorBlind: bool(o.colorBlind, D.colorBlind),
+    mistakeMode: oneOf(o.mistakeMode, ['gentle', 'classic', 'hardcore'] as const, D.mistakeMode),
+    autoRotate: oneOf(o.autoRotate, [0, 15, 30] as const, 0),
+    autoZero: bool(o.autoZero, D.autoZero),
+  };
 }
 
 export function saveSettings(s: Settings): void {
@@ -112,9 +130,18 @@ export interface Best {
   at?: number;
 }
 
+const isBest = (v: unknown): v is Best => isObj(v) && num(v.stars) && num(v.time);
+
+/** Keep only well-formed entries of a record. */
+function cleanRecord<T>(v: unknown, ok: (x: unknown) => x is T): Record<string, T> {
+  const out: Record<string, T> = {};
+  if (!isObj(v)) return out;
+  for (const [k, x] of Object.entries(v)) if (ok(x)) out[k] = x;
+  return out;
+}
+
 export function loadBest(): Record<string, Best> {
-  const v = read<Record<string, Best>>('best', {});
-  return v && typeof v === 'object' ? v : {};
+  return cleanRecord(read<unknown>('best', {}), isBest);
 }
 
 export function getBest(id: string): Best | undefined {
@@ -142,8 +169,8 @@ export function recordResult(id: string, r: Best): { newBest: boolean; prev?: Be
 // ------------------------------------------------------------------ seen mechanics
 
 export function loadSeen(): MechanicId[] {
-  const v = read<MechanicId[]>('seen', []);
-  return Array.isArray(v) ? v : [];
+  const v = read<unknown>('seen', []);
+  return Array.isArray(v) ? (v.filter((x) => typeof x === 'string') as MechanicId[]) : [];
 }
 
 export function markSeen(ids: MechanicId[]): void {
@@ -161,8 +188,7 @@ export interface DailyResult extends Best {
 }
 
 export function loadDaily(): Record<string, DailyResult> {
-  const v = read<Record<string, DailyResult>>('daily', {});
-  return v && typeof v === 'object' ? v : {};
+  return cleanRecord(read<unknown>('daily', {}), (x): x is DailyResult => isBest(x));
 }
 
 export function saveDaily(date: string, r: DailyResult): void {
@@ -176,7 +202,7 @@ export function saveDaily(date: string, r: DailyResult): void {
 // ------------------------------------------------------------------ endless
 
 export function loadEndlessStats(): Record<string, number> {
-  return read<Record<string, number>>('endless', {});
+  return cleanRecord(read<unknown>('endless', {}), num as (x: unknown) => x is number);
 }
 
 export function bumpEndless(diff: string): void {
@@ -188,7 +214,8 @@ export function bumpEndless(diff: string): void {
 // ------------------------------------------------------------------ last played
 
 export function loadLast(): string | null {
-  return read<string | null>('last', null);
+  const v = read<unknown>('last', null);
+  return typeof v === 'string' ? v : null;
 }
 
 export function saveLast(id: string): void {
@@ -206,13 +233,51 @@ export interface SavedBoard {
   moves: number;
   /** For generated levels the level itself is stored too (it cannot be rebuilt cheaply). */
   level?: unknown;
+  /** Content hash of the level the state belongs to (a changed level drops the save). */
+  hash?: string;
   at: number;
 }
 
+/** A saved board with sane fields (state values 0/1/2, numeric counters), or null. */
 export function loadProgress(id: string): SavedBoard | null {
-  const v = read<SavedBoard | null>('run:' + id, null);
-  if (!v || !Array.isArray(v.state)) return null;
-  return v;
+  const v = read<unknown>('run:' + id, null);
+  if (!isObj(v) || !Array.isArray(v.state)) return null;
+  if (!v.state.every((x) => x === 0 || x === 1 || x === 2)) return null;
+  const n = (x: unknown) => (num(x) && x >= 0 ? x : 0);
+  return {
+    state: v.state as number[],
+    phase: n(v.phase),
+    mistakes: n(v.mistakes),
+    hintsUsed: n(v.hintsUsed),
+    elapsed: n(v.elapsed),
+    moves: n(v.moves),
+    level: v.level,
+    hash: typeof v.hash === 'string' ? v.hash : undefined,
+    at: n(v.at),
+  };
+}
+
+/** FNV-1a content hash of everything that defines a level's solution and clues. */
+export function levelHash(level: {
+  cells: { q: number; r: number; gem?: boolean; clue?: unknown; extra?: unknown; rot?: unknown; alt?: unknown }[];
+  walls?: unknown;
+  portals?: unknown;
+  links?: unknown;
+  zones?: unknown;
+}): string {
+  const body = JSON.stringify([
+    level.cells.map((c) => [c.q, c.r, c.gem ? 1 : 0, c.clue ?? 0, c.extra ?? 0, c.rot ?? 0, c.alt ?? 0]),
+    level.walls ?? 0,
+    level.portals ?? 0,
+    level.links ?? 0,
+    level.zones ?? 0,
+  ]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < body.length; i++) {
+    h ^= body.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 export function saveProgress(id: string, b: SavedBoard | null): void {
@@ -298,4 +363,34 @@ export function loadEndlessTotals(): Totals {
 export function addEndlessTotals(r: Omit<Totals, 'wins'>): void {
   const s = loadEndlessTotals();
   write('endlessTotals', { wins: s.wins + 1, time: s.time + r.time, gems: s.gems + r.gems, mistakes: s.mistakes + r.mistakes });
+}
+
+// ------------------------------------------------------------------ one-time UI tips / counters
+
+/** How many times a tip / event happened (one-time hints, the first mistakes explained…). */
+export function uiCount(k: string): number {
+  const v = read<unknown>('ui', {});
+  const x = isObj(v) ? v[k] : 0;
+  return num(x) ? x : 0;
+}
+
+export function bumpUiCount(k: string): number {
+  const v = read<unknown>('ui', {});
+  const o = isObj(v) ? { ...v } : {};
+  const n = (num(o[k]) ? (o[k] as number) : 0) + 1;
+  o[k] = n;
+  write('ui', o);
+  return n;
+}
+
+// ------------------------------------------------------------------ cached daily level
+
+/** The generated daily level of a date (generated once per day, also before it is opened). */
+export function loadDailyLevel(date: string): unknown | null {
+  const v = read<unknown>('dailyLevel', null);
+  return isObj(v) && v.date === date ? v.level ?? null : null;
+}
+
+export function saveDailyLevel(date: string, level: unknown): void {
+  write('dailyLevel', { date, level });
 }

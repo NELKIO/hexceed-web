@@ -350,7 +350,7 @@
   font-size: 38px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  background: var(--gem-grad);
+  background: linear-gradient(135deg, var(--ink), var(--accent-ui));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

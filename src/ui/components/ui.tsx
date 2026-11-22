@@ -42,6 +42,30 @@ export function Sheet({ open, onClose, children, class: cls = '', label }: { ope
       return () => clearTimeout(id);
     }
   }, [open]);
+  // system back (Android back / browser back) closes the sheet instead of leaving the screen:
+  // an extra history entry with the same URL is pushed while the sheet is open
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const closable = !!onClose;
+  useEffect(() => {
+    if (!open || !closable) return;
+    const token = Math.random().toString(36).slice(2);
+    let popped = false;
+    try {
+      history.pushState({ ...(history.state ?? {}), hxSheet: token }, '');
+    } catch {
+      return;
+    }
+    const pop = () => {
+      popped = true;
+      closeRef.current?.();
+    };
+    window.addEventListener('popstate', pop);
+    return () => {
+      window.removeEventListener('popstate', pop);
+      if (!popped && (history.state as { hxSheet?: string } | null)?.hxSheet === token) history.back();
+    };
+  }, [open, closable]);
   useEffect(() => {
     if (!open || !onClose) return;
     const k = (e: KeyboardEvent) => {

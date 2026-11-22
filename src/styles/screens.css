@@ -461,7 +461,7 @@
 .try-top .pill {
   box-shadow: none;
   background: var(--gem-grad);
-  color: #fff;
+  color: var(--on-gem);
   height: 34px;
 }
 
@@ -510,7 +510,7 @@
   place-items: center;
   font-family: var(--display);
   font-size: 14px;
-  color: #fff;
+  color: var(--on-gem);
   background: var(--gem-grad);
   clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
 }
@@ -735,7 +735,7 @@
   padding: 0 12px;
   border-radius: 999px;
   background: var(--gem-grad);
-  color: #fff;
+  color: var(--on-gem);
   font-family: var(--display);
 }
 
@@ -924,4 +924,120 @@
   color: var(--muted);
   background: var(--surface-3);
   clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+}
+
+.ex-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+}
+
+.ex-actions.single {
+  grid-template-columns: 1fr;
+}
+
+.ex-count {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.explainer .ex-card {
+  min-height: 330px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .explainer .ex-card {
+    min-height: 0;
+  }
+  .sheet > .ex-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-bottom: calc(10px + var(--safe-bottom));
+    background: var(--surface);
+    box-shadow: 0 -10px 18px 4px var(--surface);
+  }
+}
+
+/* crash screen (error boundary) */
+.crash-box {
+  margin-top: 18vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.crash-box p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* app-wide notice (outside the game screen) */
+.gnotice {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 18px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(calc(100% - 28px), 460px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.36s var(--ease-spring);
+}
+
+.gnotice button {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--cta);
+  color: #fff;
+  font-weight: 800;
+}
+
+.ex-actions .btn {
+  white-space: nowrap;
+}
+
+.ex-actions .btn.ghost {
+  font-size: 15px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* the demo board fills its card */
+.explainer .ex-art {
+  height: 224px;
+}
+
+.explainer .mini {
+  padding: 8px;
+}
+
+.explainer .mini-svg {
+  max-height: 206px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .explainer .ex-art {
+    height: min(200px, calc(100vh - 150px));
+  }
 }

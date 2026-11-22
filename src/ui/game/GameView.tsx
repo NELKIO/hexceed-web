@@ -8,13 +8,13 @@ import { CellState, type Level } from '../../core/types';
 import type { Constraint } from '../../core/rules';
 import { pn, t, type TKey } from '../../i18n';
 import { buzz, sfx } from '../../audio/sfx';
-import { loadProgress, loadSeen, markSeen, recordResult, saveProgress, type Best } from '../../storage';
+import { bumpUiCount, levelHash, loadProgress, loadSeen, markSeen, recordResult, saveProgress, uiCount, type Best } from '../../storage';
 import { goBack } from '../../router';
-import { nextDeduction, preloadSolver, takeNotice } from '../engine';
+import { isFallback, nextDeduction, preloadSolver, takeNotice } from '../engine';
 import { GameBoard, type BoardHandle, type Target } from './Board';
 import type { Highlight } from './BoardLayer';
 import { layoutBoard, OUTLINE_PATH } from './geometry';
-import { cellProps, clueNow, newFx, precompute, shownConstraints, srcActive, srcCells, srcDone, srcKey, syncRotation, visibility, type Src } from './view';
+import { cellProps, clueNow, newFx, precompute, rayPaths, shownConstraints, srcActive, srcCells, srcDone, srcKey, syncRotation, visibility, type Src } from './view';
 import { canRotate, dangerOf, levelHasPhases, newGameV2, phaseOf, portalsAtPhase, resetGameV2, rotateGame } from './compat';
 import { explain } from './explain';
 import { Explainer } from './Explainer';
@@ -64,6 +64,14 @@ interface Toast {
   key: number;
 }
 
+const coarsePointer = () => {
+  try {
+    return matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+};
+
 /** First campaign level: a pulsing "tap here" bubble on one safe cell until the first move. */
 const ONBOARD_LEVEL = 'w01-01';
 
@@ -89,7 +97,15 @@ export function GameView(props: GameViewProps) {
     let replayed = 0;
     const saved = coop ? null : loadProgress(props.storeKey);
     if (coop && session?.restore) replayed = session.restore(g);
-    if (saved && saved.state.length === g.board.n && !level.cells.some((c, i) => saved.state[i] === CellState.Marked && !c.gem)) {
+    // a save only applies to exactly this level: same content hash, and a state that is consistent
+    // with the solution (no opened crystal, no marked empty cell)
+    const okSave =
+      !!saved &&
+      saved.state.length === g.board.n &&
+      (!saved.hash || saved.hash === levelHash(level)) &&
+      !level.cells.some((c, i) => (saved.state[i] === CellState.Marked && !c.gem) || (saved.state[i] === CellState.Revealed && c.gem));
+    if (saved && !okSave) saveProgress(props.storeKey, null);
+    if (saved && okSave) {
       let marked = 0;
       saved.state.forEach((s, i) => {
         g.state[i] = s;
@@ -118,13 +134,18 @@ export function GameView(props: GameViewProps) {
         an++;
       }
     const anchor: [number, number] | null = an ? [ax / an, ay / an] : null;
-    return { g, fx, layout, pre, elapsed, replayed, vis: visibility(g), phased: levelHasPhases(level), anchor };
+    // the initial framing must show every opened cell and every lock
+    const must = new Uint8Array(g.board.n);
+    for (let i = 0; i < g.board.n; i++) if (g.state[i] !== CellState.Hidden || level.cells[i].lock) must[i] = 1;
+    return { g, fx, layout, pre, elapsed, replayed, vis: visibility(g), phased: levelHasPhases(level), anchor, must, hash: levelHash(level) };
   }, [level]);
   const g: Game = init.g;
   const { fx, layout, pre } = init;
-  if (import.meta.env.DEV) (window as unknown as { __hx: unknown }).__hx = { g };
+  const devAct = useRef<(i: number, a: Action) => void>(() => {});
+  if (import.meta.env.DEV) (window as unknown as { __hx: unknown }).__hx = { g, act: (i: number, a: Action) => devAct.current(i, a), hint: () => devHint.current() };
+  const devHint = useRef<() => void>(() => {});
 
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
   const [mode, setMode] = useState<Mode>('open');
   const [pins, setPins] = useState<Pin[]>([]);
@@ -138,12 +159,17 @@ export function GameView(props: GameViewProps) {
   const [explainer, setExplainer] = useState<{ mechs: Mech[]; open: boolean; teach: boolean }>(() => ({ mechs: firstMechs, open: firstMechs.length > 0, teach: firstMechs.length > 0 }));
   const [dealt, setDealt] = useState(() => firstMechs.length === 0);
   const [onb, setOnb] = useState(-1);
+  /** First level, after the first open: the crystal to mark ("hold" / "right click"). */
+  const [onbMark, setOnbMark] = useState(-1);
+  const [flashCells, setFlashCells] = useState<{ cells: number[]; key: number } | null>(null);
   const [miss, setMiss] = useState<{ cell: number; key: number } | null>(null);
   const anchor = useRef<[number, number] | null>(init.anchor);
   const [confirm, setConfirm] = useState(false);
   const [win, setWin] = useState<WinInfo | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [flash, setFlash] = useState(0);
+  const [boardGlow, setBoardGlow] = useState(0);
+  const winFrom = useRef(0);
   const [counterPulse, setCounterPulse] = useState(0);
   const pressKey = useRef(0);
   const visRef = useRef<Uint8Array>(init.vis);
@@ -165,6 +191,11 @@ export function GameView(props: GameViewProps) {
     const id = setTimeout(() => fx.enter.fill('none'), 50);
     return () => clearTimeout(id);
   }, [init, dealt]);
+
+  // the board can never stay hidden: once no explainer is open, deal it
+  useEffect(() => {
+    if (!explainer.open && !dealt) setDealt(true);
+  }, [explainer.open, dealt]);
 
   // a notice from the level source (e.g. generation failed and a backup puzzle is shown)
   useEffect(() => {
@@ -196,6 +227,7 @@ export function GameView(props: GameViewProps) {
 
   const persist = () => {
     if (g.finishedAt || coop) return; // co-op: the session keeps the shared history
+    if (isFallback(level)) return; // a backup puzzle is never stored
     const touched = g.moves > 0 || g.mistakes > 0 || g.hintsUsed > 0 || phaseOf(g) > 0;
     if (!touched) return;
     saveProgress(props.storeKey, {
@@ -206,8 +238,34 @@ export function GameView(props: GameViewProps) {
       moves: g.moves,
       elapsed: elapsed(),
       level: props.saveLevel ? level : undefined,
+      hash: init.hash,
       at: Date.now(),
     });
+  };
+
+  /** First level: once a crystal is provable, point at it with "hold" / "right click" (until the first mark). */
+  const teachMark = () => {
+    if (g.marked > 0 || g.finishedAt) {
+      setOnbMark(-1);
+      return;
+    }
+    // a light some open number already proves (its hidden cells are exactly the missing lights)
+    const vals = knownVals(g);
+    for (const c of activeConstraints(g)) {
+      if (c.kind !== 'sum' || c.mod || c.src.type === 'global') continue;
+      let lit = 0;
+      const unk: number[] = [];
+      for (const j of c.cells) {
+        if (vals[j] === 1) lit++;
+        else if (vals[j] === -1) unk.push(j);
+      }
+      const j = unk.find((x) => visRef.current[x]);
+      if (unk.length && c.value - lit === unk.length && j !== undefined) {
+        setOnbMark(j);
+        return;
+      }
+    }
+    setOnbMark(-1);
   };
 
   /** A safe, visible cell for the first-level "tap here" bubble (next to a revealed 0 if possible). */
@@ -221,6 +279,13 @@ export function GameView(props: GameViewProps) {
     }
     for (let j = 0; j < g.board.n; j++) if (ok(j)) return j;
     return -1;
+  };
+
+  /** The board overflows the screen: tell touch players once that it can be dragged. */
+  const panTip = () => {
+    if (!coarsePointer() || uiCount('panTip') >= 1) return;
+    bumpUiCount('panTip');
+    setTimeout(() => showToast(t('panTip'), 'info', 3400), 700);
   };
 
   const showToast = (text: string, kind: Toast['kind'] = 'info', ms = 4200) => {
@@ -238,6 +303,16 @@ export function GameView(props: GameViewProps) {
 
   const wiggle = (i: number) =>
     animateCell(i, [{ transform: 'rotate(0)' }, { transform: 'rotate(-7deg)' }, { transform: 'rotate(6deg)' }, { transform: 'rotate(-3deg)' }, { transform: 'rotate(0)' }], { duration: 420, easing: 'ease-out' });
+
+  /** Tap on a fogged cell: a soft wiggle, and (once ever) a word why. */
+  const fogFeedback = (i: number) => {
+    animateCell(i, [{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 260, easing: 'ease-out' });
+    sfx.tick();
+    if (uiCount('fogTip') < 1) {
+      bumpUiCount('fogTip');
+      showToast(t('fogTip'), 'info', 3200);
+    }
+  };
 
   const lockedFeedback = (i: number) => {
     wiggle(i);
@@ -338,6 +413,7 @@ export function GameView(props: GameViewProps) {
     if (layout.px[lastCell]) anchor.current = layout.px[lastCell];
     if (onb >= 0) setOnb(-1);
     condense(lastCell);
+    if (level.id === ONBOARD_LEVEL && !won) teachMark();
     const vals = knownVals(g);
     setPins((ps) => ps.filter((p) => srcActive(g, pre, p.src) && !srcDone(g, pre, p.src, vals)));
     if (hint && g.state[hint.cell] !== CellState.Hidden) {
@@ -370,6 +446,7 @@ export function GameView(props: GameViewProps) {
       session?.local({ t: 'miss', cell: i }, g);
       mistake(i);
       afterMistake(before, i);
+      explainMistake(i);
       return;
     }
     session?.local({ t: 'act', cell: i, a }, g);
@@ -391,6 +468,20 @@ export function GameView(props: GameViewProps) {
     }
     openedLocks(locks, 260);
     afterChange(won, i);
+  };
+
+  /** Early on (worlds 1–2, and the first 3 mistakes ever) say what the right action was. */
+  const explainMistake = (i: number) => {
+    if (mistakeMode !== 'gentle' && mistakeMode !== 'classic') return;
+    const early = /^w0[12]-/.test(level.id);
+    const n = bumpUiCount('mistakes');
+    if (mistakeMode === 'classic' && dangerOf(g) > 0) return; // the danger toast has priority
+    if (!early && n > 3) {
+      showToast(t(level.cells[i].gem ? 'missShortGem' : 'missShortSafe'), 'info', 1600);
+      return;
+    }
+    const touch = coarsePointer();
+    showToast(t(level.cells[i].gem ? (touch ? 'missGemTouch' : 'missGemMouse') : 'missSafe'), 'info', 3600);
   };
 
   /** Mistake modes: classic may rewind moves, hardcore restarts (by the core, or here as a fallback). */
@@ -427,9 +518,22 @@ export function GameView(props: GameViewProps) {
 
   // ---------------------------------------------------------------- phases
   const doRotate = (auto = false) => {
+    const before = g.finishedAt ? null : cellProps(g, pre, layout, fx, knownVals(g), visRef.current);
     if (g.finishedAt || !rotateGame(g)) return;
     session?.local({ t: 'rot' }, g);
     const turned = syncRotation(g, pre, fx);
+    // what changed: turned cells and clues whose value / kind moved with the phase
+    const after = cellProps(g, pre, layout, fx, knownVals(g), visRef.current);
+    const changed: number[] = [];
+    if (before)
+      for (let i = 0; i < g.board.n; i++) {
+        if (after[i].fog) continue;
+        if (after[i].rotDeg !== before[i].rotDeg || (after[i].st !== CellState.Hidden && (after[i].value !== before[i].value || after[i].glyphKey !== before[i].glyphKey))) changed.push(i);
+      }
+    if (changed.length) {
+      setFlashCells({ cells: changed, key: Date.now() });
+      if (!auto) boardRef.current?.showAny(changed);
+    }
     if (turned || init.phased) {
       sfx.rotate();
       if (!auto) buzz(8);
@@ -538,8 +642,16 @@ export function GameView(props: GameViewProps) {
     }
     busy.current = true;
     const vals = knownVals(g);
-    const d = await nextDeduction(g.board, vals, activeConstraints(g));
-    busy.current = false;
+    let d: Awaited<ReturnType<typeof nextDeduction>> = null;
+    try {
+      d = await nextDeduction(g.board, vals, activeConstraints(g));
+    } catch (e) {
+      console.error('[hexlume] hint failed', e);
+    } finally {
+      // never leave the hint button dead (a throwing solver used to lock it until reload)
+      busy.current = false;
+    }
+    if (g.finishedAt) return;
     if (!d || g.state[d.cell] !== CellState.Hidden) {
       showToast(t('noHint'), 'info');
       return;
@@ -573,27 +685,30 @@ export function GameView(props: GameViewProps) {
     setToast(null);
     props.onWin?.(info);
     session?.finished(info, g);
-    // bloom wave from the last cell
+    // zoom out to the whole solved board, one board glow, and a bloom wave over the crystals only
+    // (transform-only animations, at most ~40 at once — cheap even on slow phones)
+    boardRef.current?.fitAll(reduced ? 0 : 700);
+    winFrom.current = lastCell;
+    setBoardGlow((n) => n + 1);
     const [x0, y0] = layout.px[lastCell] ?? [0, 0];
     let maxD = 0;
     setTimeout(() => sfx.win(), 180);
     buzz([12, 60, 12, 60, 30]);
-    for (let i = 0; i < g.board.n; i++) {
-      const d = Math.hypot(layout.px[i][0] - x0, layout.px[i][1] - y0) * 2.2 + 220;
+    const gems: number[] = [];
+    for (let i = 0; i < g.board.n; i++) if (level.cells[i].gem) gems.push(i);
+    const dist = (i: number) => Math.hypot(layout.px[i][0] - x0, layout.px[i][1] - y0);
+    gems.sort((a, b) => dist(a) - dist(b));
+    gems.slice(0, 40).forEach((i, k) => {
+      const d = 260 + Math.min(dist(i) * 1.6, 900) + k * 6;
       maxD = Math.max(maxD, d);
       animateCell(
         i,
-        [
-          { transform: 'scale(1)', filter: 'brightness(1)' },
-          { transform: 'scale(1.13)', filter: 'brightness(1.18)', offset: 0.35 },
-          { transform: 'scale(0.97)', offset: 0.7 },
-          { transform: 'scale(1)', filter: 'brightness(1)' },
-        ],
-        { duration: 620, delay: d, easing: 'cubic-bezier(.3,.7,.3,1)' },
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.16)', offset: 0.35 }, { transform: 'scale(0.97)', offset: 0.7 }, { transform: 'scale(1)' }],
+        { duration: 560, delay: d, easing: 'cubic-bezier(.3,.7,.3,1)' },
       );
-      if (level.cells[i].gem) boardRef.current?.spawn('bloom', i, d + 100);
-    }
-    setTimeout(() => setShowResult(true), reduced ? 300 : Math.min(2200, maxD + 650));
+      if (k < 24) boardRef.current?.spawn('bloom', i, d + 100);
+    });
+    setTimeout(() => setShowResult(true), reduced ? 300 : Math.min(2200, Math.max(1300, maxD + 650)));
   };
 
   const restart = (quiet = false) => {
@@ -632,7 +747,7 @@ export function GameView(props: GameViewProps) {
     const i = tg.i;
     const st = g.state[i];
     if (st === CellState.Hidden) {
-      if (!visRef.current[i]) return;
+      if (!visRef.current[i]) return fogFeedback(i);
       lastTap.current = { cell: i, kind: 'act' };
       if (isLocked(g, i)) return lockedFeedback(i);
       return doAct(i, primary());
@@ -782,10 +897,14 @@ export function GameView(props: GameViewProps) {
     setMode((m) => (m === 'open' ? 'gem' : 'open'));
   };
 
+  devAct.current = doAct;
+  devHint.current = () => void doHint();
+
   // ---------------------------------------------------------------- derived render data
   const vals = knownVals(g);
   doRotateRef.current = doRotate;
-  const cells = cellProps(g, pre, layout, fx, vals, visRef.current);
+  // render props only change with the game (moves, phase, fog) — not with hover / press / pins
+  const cells = useMemo(() => cellProps(g, pre, layout, fx, vals, visRef.current), [version, visRef.current, init]);
   const danger = mistakeMode === 'classic' ? dangerOf(g) : 0;
   const badgeOf = (s: Src): [number, number] | undefined => {
     if (s.t === 'cell') return undefined;
@@ -795,24 +914,25 @@ export function GameView(props: GameViewProps) {
   const highlights: Highlight[] = [];
   for (const p of pins) {
     if (!srcActive(g, pre, p.src) || srcDone(g, pre, p.src, vals)) continue;
-    highlights.push({ cells: srcCells(g, pre, p.src), src: p.src.t === 'cell' ? p.src.i : -1, srcPoint: badgeOf(p.src), tint: p.tint, key: 'p' + srcKey(p.src) });
+    highlights.push({ cells: srcCells(g, pre, p.src), src: p.src.t === 'cell' ? p.src.i : -1, srcPoint: badgeOf(p.src), tint: p.tint, key: 'p' + srcKey(p.src), rays: p.src.t === 'cell' ? rayPaths(g, layout, p.src.i) : undefined });
   }
   if (hint && !win) {
     hint.reasons.forEach((c, k) => {
       if (c.src.type === 'global') return;
       const src: Src = c.src.type === 'cell' ? { t: 'cell', i: c.src.cell } : c.src.type === 'zone' ? { t: 'zone', z: c.src.zone } : { t: 'link', l: c.src.link };
-      highlights.push({ cells: c.cells.filter((j) => vals[j] === -1), src: c.src.type === 'cell' ? c.src.cell : -1, srcPoint: badgeOf(src), tint: 8, key: 'h' + k });
+      highlights.push({ cells: c.cells.filter((j) => vals[j] === -1), src: c.src.type === 'cell' ? c.src.cell : -1, srcPoint: badgeOf(src), tint: 8, key: 'h' + k, rays: c.src.type === 'cell' ? rayPaths(g, layout, c.src.cell) : undefined });
     });
   }
   const transient = hold ?? hover.src;
   if (transient && srcActive(g, pre, transient)) {
-    highlights.push({ cells: srcCells(g, pre, transient), src: transient.t === 'cell' ? transient.i : -1, srcPoint: badgeOf(transient), tint: 9, key: 't' + srcKey(transient) });
+    highlights.push({ cells: srcCells(g, pre, transient), src: transient.t === 'cell' ? transient.i : -1, srcPoint: badgeOf(transient), tint: 9, key: 't' + srcKey(transient), rays: transient.t === 'cell' ? rayPaths(g, layout, transient.i) : undefined });
   }
   const zoneDone = (level.zones ?? []).map((_, z) => srcDone(g, pre, { t: 'zone', z }, vals));
   const linkDone = (level.links ?? []).map((_, l) => srcDone(g, pre, { t: 'link', l }, vals));
   const left = g.board.totalGems - g.marked;
   const mechs = useMemo(() => levelMechanics(level), [level]);
   const phaseNow = phaseOf(g);
+  const period = (g.board as unknown as { period?: number }).period ?? 1;
   const portals = useMemo(() => portalsAtPhase(g.board, level, phaseNow), [init, phaseNow]);
   const onbShow = onb >= 0 && g.moves === 0 && !g.finishedAt && g.state[onb] === CellState.Hidden && !explainer.open;
   const toastText = toast ? (toast.kind === 'danger' ? (danger > 0 ? t('danger', { moves: pn(danger, 'pl_move') }) : '') : toast.text) : '';
@@ -831,7 +951,14 @@ export function GameView(props: GameViewProps) {
   const overlay = (
     <>
       {session?.Overlay ? <session.Overlay layout={layout} /> : null}
-      {onbShow && <OnboardBubble x={layout.px[onb][0]} y={layout.px[onb][1]} below={bubbleBelow(onb)} path={layout.outline[onb]} />}
+      {onbShow && <OnboardBubble x={layout.px[onb][0]} y={layout.px[onb][1]} below={bubbleBelow(onb)} path={layout.outline[onb]} label={t('onbTap')} />}
+      {!onbShow && onbMark >= 0 && g.marked === 0 && !g.finishedAt && g.state[onbMark] === CellState.Hidden && !explainer.open && (
+        <OnboardBubble x={layout.px[onbMark][0]} y={layout.px[onbMark][1]} below={bubbleBelow(onbMark)} path={layout.outline[onbMark]} label={t(coarsePointer() ? 'onbHold' : 'onbRight')} gem />
+      )}
+      {flashCells &&
+        flashCells.cells.map((i) => (
+          <path key={`${flashCells.key}-${i}`} class="rot-flash" d={layout.outline[i] ?? OUTLINE_PATH} transform={`translate(${layout.px[i][0].toFixed(1)} ${layout.px[i][1].toFixed(1)})`} />
+        ))}
       {miss && layout.px[miss.cell] && (
         <g key={miss.key} class="miss-x" transform={`translate(${layout.px[miss.cell][0].toFixed(1)} ${layout.px[miss.cell][1].toFixed(1)})`}>
           <g class="mx-in">
@@ -911,8 +1038,11 @@ export function GameView(props: GameViewProps) {
           staticWalls={pre.staticWalls}
           wallSegs={pre.wallSegs}
           portals={portals}
+          glowWave={win && !reduced ? layout.px[winFrom.current] ?? null : null}
           focus={visRef.current}
           anchor={anchor.current}
+          must={init.must}
+          onOverflow={panTip}
           badges={pre.badges}
           reducedMotion={reduced}
           onTap={onTap}
@@ -925,6 +1055,7 @@ export function GameView(props: GameViewProps) {
           overlay={overlay}
         />}
         {flash > 0 && <div class="flash" key={flash} />}
+        {boardGlow > 0 && !reduced && <div class="win-glow" key={'w' + boardGlow} />}
         {toast && toastText && (
           <div class={'toast ' + toast.kind} key={toast.key} onClick={() => setToast(null)} role="status">
             {toast.kind === 'hint' && <IconBulb />}
@@ -953,10 +1084,17 @@ export function GameView(props: GameViewProps) {
             {g.hintsUsed > 0 && <i class="badge">{g.hintsUsed}</i>}
           </button>
           {init.phased && canRotate() && (
-            <button class="tool rot" onClick={() => doRotate()} aria-label={t('rotate')} title={`${t('rotate')} (T)`} disabled={!!win}>
+            <button class="tool rot" onClick={() => doRotate()} aria-label={`${t('rotate')} (${phaseNow % period + 1}/${period})`} title={`${t('rotate')} (T)`} disabled={!!win}>
               <span class="rf-ic" key={rotPulse}>
                 <IconRotate />
               </span>
+              {period > 1 && period <= 6 && (
+                <span class="rot-pips" aria-hidden="true">
+                  {Array.from({ length: period }, (_, k) => (
+                    <i key={k} class={k === phaseNow % period ? 'on' : ''} />
+                  ))}
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -1044,11 +1182,10 @@ export function GameView(props: GameViewProps) {
 }
 
 /** "Tap here" bubble + pulsing outline for the very first move. */
-function OnboardBubble({ x, y, below, path }: { x: number; y: number; below: boolean; path?: string }) {
-  const label = t('onbTap');
+function OnboardBubble({ x, y, below, path, label, gem }: { x: number; y: number; below: boolean; path?: string; label: string; gem?: boolean }) {
   const w = 26 + label.length * 10.5;
   return (
-    <g class="onb" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+    <g class={'onb' + (gem ? ' gem' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
       <path class="onb-ring r1" d={path ?? OUTLINE_PATH} />
       <path class="onb-ring r2" d={path ?? OUTLINE_PATH} />
       <g class="onb-bubble" transform={`translate(0 ${below ? 60 : -60})`}>

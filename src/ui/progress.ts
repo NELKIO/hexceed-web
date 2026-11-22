@@ -38,3 +38,13 @@ export function continueTarget(): { id: string; world: number; index: number; fr
   const lw = WORLDS[WORLDS.length - 1];
   return lw ? { id: lw.levels[lw.levels.length - 1], world: WORLDS.length - 1, index: lw.levels.length - 1, fresh: false } : null;
 }
+
+/** Mechanics the player has met: everything introduced by the worlds unlocked so far. */
+export function unlockedMechanics(): import('../core/types').MechanicId[] {
+  const done = doneSet();
+  const out = new Set<import('../core/types').MechanicId>(['basic', 'counter', 'fog', 'blank']);
+  WORLDS.forEach((w, wi) => {
+    if (worldUnlocked(wi, (id) => done.has(id))) w.mechanics.forEach((m) => out.add(m));
+  });
+  return [...out];
+}

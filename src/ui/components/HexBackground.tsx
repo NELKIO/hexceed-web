@@ -1,4 +1,4 @@
-// Softly animated hex field behind the menu: a slow colour wave plus crystals that light up and fade.
+// Softly animated hex field behind the menu: a slow colour wave plus warm lights that come on and fade.
 
 import { useEffect, useRef } from 'preact/hooks';
 
@@ -87,26 +87,21 @@ export function HexBackground({ density = 1 }: { density?: number }) {
           continue;
         }
         const a = Math.sin(Math.PI * p);
-        const grad = ctx.createLinearGradient(g.x - R, g.y - R, g.x + R, g.y + R);
-        grad.addColorStop(0, col.g1);
-        grad.addColorStop(1, col.g2);
-        ctx.globalAlpha = a * (col.dark ? 0.55 : 0.42);
+        // a warm light comes on in a cell and fades: soft halo + bright core
+        const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R * 1.25);
+        grad.addColorStop(0, 'rgba(255,248,225,1)');
+        grad.addColorStop(0.3, col.g2);
+        grad.addColorStop(0.75, col.g1);
+        grad.addColorStop(1, 'rgba(255,180,80,0)');
+        ctx.globalAlpha = a * (col.dark ? 0.6 : 0.42);
         ctx.fillStyle = grad;
-        hexPath(g.x, g.y, R * 0.9);
-        ctx.fill();
-        ctx.globalAlpha = a * 0.9;
-        ctx.fillStyle = '#fff';
-        const s = R * 0.32 * (0.6 + 0.4 * a);
         ctx.beginPath();
-        ctx.moveTo(g.x, g.y - s);
-        ctx.lineTo(g.x + s * 0.28, g.y - s * 0.28);
-        ctx.lineTo(g.x + s, g.y);
-        ctx.lineTo(g.x + s * 0.28, g.y + s * 0.28);
-        ctx.lineTo(g.x, g.y + s);
-        ctx.lineTo(g.x - s * 0.28, g.y + s * 0.28);
-        ctx.lineTo(g.x - s, g.y);
-        ctx.lineTo(g.x - s * 0.28, g.y - s * 0.28);
-        ctx.closePath();
+        ctx.arc(g.x, g.y, R * 1.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = a * 0.85;
+        ctx.fillStyle = '#fffaf0';
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, R * 0.16 * (0.7 + 0.3 * a), 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }

@@ -53,12 +53,12 @@ const PARAMS: WorldParams[] = [
       { teach: ['fog'], size: 14, target: 1, counter: false },
       { teach: ['counter'], size: 16, target: 2, fog: false, attempts: 30 },
     ],
-    size: [22, 50],
+    size: [20, 36],
     target: [1, 2],
-    showcase: 60,
+    showcase: 38,
   },
   // 2 Walls & islands
-  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 26, target: 2 }], size: [40, 75], target: [1, 2], showcase: 100 },
+  { tutorials: [{ teach: ['walls'], with: ['walls'], size: 20, target: 2 }, { teach: ['gaps'], with: ['gaps'], size: 26, target: 2 }], size: [28, 50], target: [1, 2], showcase: 52 },
   // 3 Rays
   {
     tutorials: [
@@ -66,9 +66,9 @@ const PARAMS: WorldParams[] = [
       { teach: ['multiline'], with: ['line', 'multiline'], size: 22, target: 2 },
       { teach: ['blank'], with: ['line', 'blank'], size: 28, target: 3 },
     ],
-    size: [42, 80],
+    size: [36, 66],
     target: [2, 4],
-    showcase: 115,
+    showcase: 75,
   },
   // 4 Circles
   {
@@ -79,14 +79,14 @@ const PARAMS: WorldParams[] = [
     ],
     size: [45, 85],
     target: [3, 4],
-    showcase: 125,
+    showcase: 100,
   },
   // 5 Cones
-  { tutorials: [{ teach: ['cone'], with: ['cone', 'blank'], size: 20, target: 2 }, { teach: ['triangle'], with: ['triangle', 'blank'], size: 24, target: 3 }], size: [45, 85], target: [3, 5], showcase: 135 },
+  { tutorials: [{ teach: ['cone'], with: ['cone', 'blank'], size: 20, target: 2 }, { teach: ['triangle'], with: ['triangle', 'blank'], size: 24, target: 3 }], size: [45, 85], target: [3, 5], showcase: 100 },
   // 6 Locks
-  { tutorials: [{ teach: ['lock'], with: ['lock', 'blank'], size: 20, target: 2 }, { teach: ['gemclue'], with: ['gemclue', 'blank'], size: 24, target: 3 }], size: [48, 90], target: [3, 5], showcase: 145 },
+  { tutorials: [{ teach: ['lock'], with: ['lock', 'blank'], size: 20, target: 2 }, { teach: ['gemclue'], with: ['gemclue', 'blank'], size: 24, target: 3 }], size: [48, 90], target: [3, 5], showcase: 102 },
   // 7 Dots & swirls
-  { tutorials: [{ teach: ['dot'], with: ['dot', 'blank'], size: 20, target: 2 }, { teach: ['swirl'], with: ['swirl', 'walls', 'blank'], size: 24, target: 3 }], size: [50, 90], target: [4, 5], showcase: 150 },
+  { tutorials: [{ teach: ['dot'], with: ['dot', 'blank'], size: 20, target: 2 }, { teach: ['swirl'], with: ['swirl', 'walls', 'blank'], size: 24, target: 3 }], size: [50, 90], target: [4, 5], showcase: 104 },
   // 8 Rotation
   {
     tutorials: [
@@ -95,7 +95,7 @@ const PARAMS: WorldParams[] = [
     ],
     size: [50, 95],
     target: [4, 6],
-    showcase: 155,
+    showcase: 104,
   },
   // 9 Big cells & portals
   {
@@ -105,7 +105,7 @@ const PARAMS: WorldParams[] = [
     ],
     size: [52, 100],
     target: [5, 6],
-    showcase: 160,
+    showcase: 106,
   },
   // 10 Island & chain
   {
@@ -115,16 +115,16 @@ const PARAMS: WorldParams[] = [
     ],
     size: [55, 100],
     target: [5, 7],
-    showcase: 165,
+    showcase: 106,
   },
   // 11 Together & apart
-  { tutorials: [{ teach: ['together'], with: ['together', 'blank'], size: 22, target: 2 }, { teach: ['apart'], with: ['apart', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 7], showcase: 170 },
+  { tutorials: [{ teach: ['together'], with: ['together', 'blank'], size: 22, target: 2 }, { teach: ['apart'], with: ['apart', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 7], showcase: 108 },
   // 12 Eye & parity
-  { tutorials: [{ teach: ['eye'], with: ['eye', 'blank'], size: 24, target: 3 }, { teach: ['parity'], with: ['parity', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 8], showcase: 175 },
+  { tutorials: [{ teach: ['eye'], with: ['eye', 'blank'], size: 24, target: 3 }, { teach: ['parity'], with: ['parity', 'blank'], size: 24, target: 3 }], size: [55, 105], target: [6, 8], showcase: 108 },
   // 13 Threads & zones
-  { tutorials: [{ teach: ['link'], with: ['link', 'blank'], size: 22, target: 2 }, { teach: ['zone'], with: ['zone', 'blank'], size: 24, target: 3 }], size: [60, 110], target: [7, 8], showcase: 175 },
+  { tutorials: [{ teach: ['link'], with: ['link', 'blank'], size: 22, target: 2 }, { teach: ['zone'], with: ['zone', 'blank'], size: 24, target: 3 }], size: [60, 110], target: [7, 8], showcase: 108 },
   // 14 Finale
-  { tutorials: [], size: [70, 110], target: [8, 10], showcase: 180 },
+  { tutorials: [], size: [70, 110], target: [8, 10], showcase: 150 },
 ];
 
 const SHOWCASE: ShapeId[] = ['flower', 'islands2', 'star', 'heart', 'glyph', 'ring', 'flower', 'hexagon', 'islands3', 'glyph', 'heart', 'star', 'blob', 'flower'];
@@ -170,6 +170,8 @@ export function plan(): GenOptions[] {
           density: lerp(0.2, 0.3, worldT) - 0.02,
           walls: t.with?.includes('walls') ? 0.12 : undefined,
           attempts: t.attempts,
+          simple: w.n === 1,
+          maxCols: w.n <= 3 ? 7 : 9,
         });
         return;
       }
@@ -179,7 +181,7 @@ export function plan(): GenOptions[] {
       let target = Math.round(lerp(P.target[0], P.target[1], p));
       if (!showcase && li % 4 === 3 && target > P.target[0]) target--; // breather
       if (showcase) {
-        size = P.showcase + rng.int(10);
+        size = P.showcase + rng.int(6);
         target = P.target[1];
       }
       // mechanics: the world's own + a random selection of the older ones
@@ -210,6 +212,9 @@ export function plan(): GenOptions[] {
         walls: mech.has('walls') ? 0.06 + rng.next() * 0.07 : undefined,
         islands: mech.has('gaps') && size >= 30 && CROSS.some((m) => mech.has(m)) ? rng.chance(0.5) : false,
         fog: true,
+        simple: w.n === 1,
+        maxCols: w.n <= 3 ? 7 : showcase && w.n === WORLDS.length ? 11 : 9,
+        maxTrivialRun: showcase ? 25 : undefined,
         attempts: size <= 140 ? 8 : undefined,
         tolerance: target <= 6 ? 0 : 1,
       });
@@ -254,7 +259,14 @@ function main() {
   let teachFail = 0;
   for (const p of plans) {
     const t = Date.now();
-    const level = generateLevel(p);
+    let level = generateLevel(p);
+    // a world's finale must not be rated below the level before it
+    const prev = levels[levels.length - 1];
+    if (p.maxTrivialRun && prev && prev.id.slice(0, 3) === p.id!.slice(0, 3))
+      for (let k = 1; k <= 3 && (level.diff ?? 0) < (prev.diff ?? 0); k++) {
+        const alt = generateLevel({ ...p, seed: `${p.seed}#${k}` });
+        if ((alt.diff ?? 0) > (level.diff ?? 0)) level = { ...alt, id: p.id! };
+      }
     const rep = solveDetailed(level, { trace: true });
     if (!rep.solved) throw new Error(`${p.id} is not solvable`);
     const ms = Date.now() - t;

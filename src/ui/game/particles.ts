@@ -78,7 +78,7 @@ export class Particles {
       for (let i = 0; i < 6; i++) {
         const a = Math.random() * Math.PI * 2;
         const sp = 40 + Math.random() * 80;
-        add({ kind: 'sparkle', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, max: 900 + Math.random() * 500, size: 3 + Math.random() * 5, color: [c.g1, c.g2, c.a1, c.a2, '#ffffff'][i % 5], vr: (Math.random() - 0.5) * 8 });
+        add({ kind: 'sparkle', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, max: 900 + Math.random() * 500, size: 3 + Math.random() * 5, color: [c.g1, c.g2, '#fff3c4', c.a2, '#ffffff'][i % 5], vr: (Math.random() - 0.5) * 8 });
       }
     } else if (kind === 'bad') {
       add({ kind: 'ring', max: 420, size: 16, color: c.bad });

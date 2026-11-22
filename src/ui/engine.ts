@@ -2,7 +2,9 @@
 // returns nothing for a missing file), so the UI builds and runs with local fallbacks.
 
 import type { Board, Constraint } from '../core/rules';
-import type { Level } from '../core/types';
+import type { Level, MechanicId } from '../core/types';
+import { validateLevel } from '../core/validate';
+import { loadDailyLevel, saveDailyLevel } from '../storage';
 import { hashString } from '../core/rng';
 import { fallbackNextDeduction, type Deduction } from './game/fallbackSolver';
 import { SAMPLES } from '../levels/samples';
@@ -13,8 +15,8 @@ export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
 type SolverMod = { nextDeduction?: (b: Board, v: Int8Array, c: Constraint[]) => Deduction | null };
 type GenMod = {
-  dailyLevel?: (dateISO: string) => Level;
-  endlessLevel?: (seed: number | string, d: Difficulty) => Level;
+  dailyLevel?: (dateISO: string, mechanics?: MechanicId[]) => Level;
+  endlessLevel?: (seed: number | string, d: Difficulty, mechanics?: MechanicId[]) => Level;
 };
 
 const solverMods = import.meta.glob<SolverMod>('../core/solver.ts');
@@ -89,7 +91,19 @@ function viaWorker(msg: Record<string, unknown>, timeoutMs: number): Promise<Lev
           else if (d?.type === 'error') finish(null);
         };
         const onErr = () => finish(null);
-        const timer = window.setTimeout(() => finish(null), timeoutMs);
+        const timer = window.setTimeout(() => {
+          // a stuck worker would block every later request: start over with a fresh one
+          try {
+            w.terminate();
+          } catch {
+            /* ignore */
+          }
+          if (worker === w) {
+            worker = null;
+            workerTried = false;
+          }
+          finish(null);
+        }, timeoutMs);
         w.addEventListener('message', onMsg);
         w.addEventListener('error', onErr);
         w.postMessage({ ...msg, id });
@@ -117,13 +131,32 @@ export function takeNotice(): string | null {
   return n;
 }
 
+const FALLBACK = '__fallback';
+
+/** A backup puzzle shown because generation failed: never stored, never cached. */
+export function isFallback(level: Level): boolean {
+  return !!(level as unknown as Record<string, unknown>)[FALLBACK];
+}
+
 /** Generation failed: keep the player going with a handmade puzzle, but say so loudly. */
 function sampleFor(seed: string, prefix: string, why: unknown): Level {
   console.error(`[hexlume] level generation failed for ${prefix}; using a backup puzzle`, why);
   notice = 'genFallback';
   const pool = SAMPLES.filter((l) => l.id !== 's01');
   const base = pool[hashString(seed) % pool.length];
-  return { ...base, id: prefix };
+  return { ...base, id: prefix, [FALLBACK]: true } as Level;
+}
+
+/**
+ * Structural check of level JSON from storage or the network (the core's validateLevel when it
+ * exists, else a light local check). Returns the level or null.
+ */
+export function checkLevel(x: unknown): Level | null {
+  try {
+    return validateLevel(x);
+  } catch {
+    return null;
+  }
 }
 
 export function todayISO(d = new Date()): string {
@@ -131,34 +164,67 @@ export function todayISO(d = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-export async function makeDaily(dateISO: string): Promise<Level> {
+/** Thrown when the generator worker timed out / crashed: the screen offers "try again". */
+export class GenTimeout extends Error {}
+
+const workerAvailable = async () => !!(await getWorker());
+
+/**
+ * Today's puzzle: cached per date (generated once — the menu pre-generates it while idle).
+ * `mechanics` restricts it to what the player has unlocked.
+ */
+export async function makeDaily(dateISO: string, mechanics?: MechanicId[]): Promise<Level> {
   const id = `daily-${dateISO}`;
-  const w = await viaWorker({ type: 'daily', date: dateISO }, 20000);
-  if (w) return { ...w, id };
-  const g = await loadGen();
-  let why: unknown = 'worker gave no level';
-  if (g?.dailyLevel) {
+  const cached = checkLevel(loadDailyLevel(dateISO));
+  if (cached) return { ...cached, id };
+  let level: Level | null = null;
+  if (await workerAvailable()) {
+    const w = await viaWorker({ type: 'daily', date: dateISO, mechanics }, 25000);
+    if (!w) throw new GenTimeout('daily');
+    level = checkLevel(w);
+  } else {
+    const g = await loadGen();
     try {
-      return { ...g.dailyLevel(dateISO), id };
+      if (g?.dailyLevel) level = checkLevel(g.dailyLevel(dateISO, mechanics));
     } catch (e) {
-      why = e;
+      return sampleFor(dateISO, id, e);
     }
-  } else why = 'generator module unavailable';
-  return sampleFor(dateISO, id, why);
+  }
+  if (!level) return sampleFor(dateISO, id, 'invalid level');
+  level = { ...level, id };
+  saveDailyLevel(dateISO, level);
+  return level;
 }
 
-export async function makeEndless(seed: string, diff: Difficulty): Promise<Level> {
+/** Generate today's puzzle in the background (menu idle time) so opening it is instant. */
+export function pregenDaily(mechanics?: MechanicId[]): void {
+  const date = todayISO();
+  if (loadDailyLevel(date)) return;
+  const run = () => void makeDaily(date, mechanics).catch(() => undefined);
+  const w = window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
+  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 1500);
+}
+
+/** Mechanics of the "easy" endless board: numbers, walls and holes only. */
+export const EASY_MECHANICS: MechanicId[] = ['basic', 'counter', 'fog', 'walls', 'gaps', 'blank'];
+
+export async function makeEndless(seed: string, diff: Difficulty, mechanics?: MechanicId[]): Promise<Level> {
   const id = `endless-${diff}-${seed}`;
-  const w = await viaWorker({ type: 'endless', seed, difficulty: diff }, 25000);
-  if (w) return { ...w, id };
-  const g = await loadGen();
-  let why: unknown = 'worker gave no level';
-  if (g?.endlessLevel) {
+  const mech = diff === 'easy' ? EASY_MECHANICS : mechanics;
+  let level: Level | null = null;
+  if (await workerAvailable()) {
+    const w = await viaWorker({ type: 'endless', seed, difficulty: diff, mechanics: mech }, 25000);
+    if (!w) throw new GenTimeout('endless');
+    level = checkLevel(w);
+  } else {
+    const g = await loadGen();
     try {
-      return { ...g.endlessLevel(seed, diff), id };
+      if (g?.endlessLevel) level = checkLevel(g.endlessLevel(seed, diff, mech));
     } catch (e) {
-      why = e;
+      return sampleFor(seed + diff, id, e);
     }
-  } else why = 'generator module unavailable';
-  return sampleFor(seed + diff, id, why);
+  }
+  if (!level) return sampleFor(seed + diff, id, 'invalid level');
+  return { ...level, id };
 }

@@ -1,25 +1,27 @@
 // The hidden object of the game, drawn in one place so the theme can change without touching
-// the board, the counters or the menus. Current theme: «огоньки» — warm glowing lights.
+// the board, the counters or the menus. Theme v3 «Instrument»: one warm light in dark glass.
 //
-//   PieceGlyph — on the board (board units, ~40 = hex circumradius): a luminous core.
+//   PieceGlyph — on the board (board units, ~40 = hex circumradius): a thin ring around a small
+//                bright core, with a soft inner light. The tile itself (dark glass) is drawn by Cell.
 //   PieceHalo  — the soft light a lit cell spills onto its neighbours (drawn in a layer above tiles).
-//   PieceIcon  — 24×24 UI icon (counter chip, mode switch, stats…).
-//   PieceLogo  — the app mark: a hex with a warm glowing core (logo, favicon, PWA icons).
+//   PieceIcon  — 24×24 UI icon (counter, mode switch, stats…): ring + core.
+//   PieceLogo  — the app mark: a graphite hex with a single lit core (logo, favicon, PWA icons).
 //
-// Paint servers (#pc-core, #pc-halo, #pc-lit) live in App.tsx <SvgDefs>, coloured by CSS tokens
-// (--glow-*), so light and dark themes recolour everything at once.
+// Paint servers (#pc-core, #pc-aura, #pc-halo) live in App.tsx <SvgDefs>, coloured by CSS tokens
+// (--lume*), so light and dark themes recolour everything at once.
 
 import type { JSX } from 'preact';
 
 type P = JSX.SVGAttributes<SVGSVGElement>;
 
-/** The light itself (board units). `scale` 1 ≈ a 30-unit glow with a 10-unit core. */
+/** The light itself (board units). `scale` 1 = a 12.5-unit ring around a 6.5-unit core. */
 export function PieceGlyph({ scale = 1, y = 0 }: { scale?: number; y?: number }) {
   return (
     <g class="piece" transform={`translate(0 ${y}) scale(${scale})`}>
-      <circle class="pc-aura" r={22} />
-      <circle class="pc-core" r={7.6} />
-      <circle class="pc-spark" cx={-2.4} cy={-2.6} r={2} />
+      <circle class="pc-aura" r={27} />
+      <circle class="pc-flash" r={12.5} />
+      <circle class="pc-ring" r={12.5} />
+      <circle class="pc-core" r={6.6} />
     </g>
   );
 }
@@ -29,42 +31,41 @@ export function PieceHalo({ x, y, r, delay }: { x: number; y: number; r: number;
   return <circle class="pc-halo" cx={x.toFixed(1)} cy={y.toFixed(1)} r={r} style={delay ? { animationDelay: `${delay}ms` } : undefined} />;
 }
 
-/** 24×24 icon for buttons and chips: a glowing orb with soft rays. */
+/** 24×24 icon for buttons and chips: a thin ring around a lit core. */
 export function PieceIcon(p: P) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" {...p} class={'piece-ic ' + (p.class ?? '')}>
-      <circle class="pi-halo" cx="12" cy="12" r="10.5" />
-      <circle class="pi-ring" cx="12" cy="12" r="7" />
-      <circle class="pi-core" cx="12" cy="12" r="4.4" />
-      <circle cx="10.7" cy="10.6" r="1.3" fill="#fff" />
+      <circle class="pi-ring" cx="12" cy="12" r="7.5" />
+      <circle class="pi-core" cx="12" cy="12" r="3.6" />
     </svg>
   );
 }
 
-/** The app mark: a hex with a warm light inside. */
+const HEX = 'M17.6 8.2h28.8L60.8 32 46.4 55.8H17.6L3.2 32z';
+
+/** The app mark: a graphite hex with a single warm light inside. */
 export function PieceLogo(p: P) {
   return (
-    <svg viewBox="0 0 64 64" aria-hidden="true" {...p}>
+    <svg viewBox="0 0 64 64" aria-hidden="true" {...p} class={'logo-mark ' + (p.class ?? '')}>
       <defs>
-        <linearGradient id="lg-hex" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#3f4588" />
-          <stop offset="1" stop-color="#232650" />
-        </linearGradient>
         <radialGradient id="lg-glow" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stop-color="#fff6dc" />
-          <stop offset="0.28" stop-color="#ffd27a" />
-          <stop offset="0.62" stop-color="#f59a37" stop-opacity="0.55" />
-          <stop offset="1" stop-color="#f08a2e" stop-opacity="0" />
+          <stop offset="0" stop-color="#f4c77a" stop-opacity="0.55" />
+          <stop offset="0.55" stop-color="#f4c77a" stop-opacity="0.12" />
+          <stop offset="1" stop-color="#f4c77a" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="lg-core" cx="0.45" cy="0.42" r="0.6">
+          <stop offset="0" stop-color="#fffaf0" />
+          <stop offset="0.6" stop-color="#ffe6b5" />
+          <stop offset="1" stop-color="#f4c77a" />
         </radialGradient>
       </defs>
-      <path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="url(#lg-hex)" />
-      <path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="2" />
-      <circle cx="32" cy="32" r="22" fill="url(#lg-glow)" />
-      <circle cx="32" cy="32" r="8.5" fill="#fff4d6" />
-      <circle cx="29.2" cy="29" r="2.6" fill="#fff" />
+      <path class="lm-hex" d={HEX} />
+      <circle cx="32" cy="32" r="20" fill="url(#lg-glow)" />
+      <circle cx="32" cy="32" r="10.5" fill="none" stroke="#f4c77a" stroke-width="1.6" />
+      <circle cx="32" cy="32" r="5.6" fill="url(#lg-core)" />
     </svg>
   );
 }
 
 /** Same mark as a standalone SVG string (favicon / PWA icons / OG image). */
-export const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3f4588"/><stop offset="1" stop-color="#232650"/></linearGradient><radialGradient id="b" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff6dc"/><stop offset=".28" stop-color="#ffd27a"/><stop offset=".62" stop-color="#f59a37" stop-opacity=".55"/><stop offset="1" stop-color="#f08a2e" stop-opacity="0"/></radialGradient></defs><path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="url(#a)"/><path d="M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="2"/><circle cx="32" cy="32" r="22" fill="url(#b)"/><circle cx="32" cy="32" r="8.5" fill="#fff4d6"/><circle cx="29.2" cy="29" r="2.6" fill="#fff"/></svg>`;
+export const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><radialGradient id="g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f4c77a" stop-opacity=".55"/><stop offset=".55" stop-color="#f4c77a" stop-opacity=".12"/><stop offset="1" stop-color="#f4c77a" stop-opacity="0"/></radialGradient><radialGradient id="c" cx=".45" cy=".42" r=".6"><stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#ffe6b5"/><stop offset="1" stop-color="#f4c77a"/></radialGradient></defs><path d="${HEX}" fill="#1a1d23" stroke="#ffffff" stroke-opacity=".14" stroke-width="1.2"/><circle cx="32" cy="32" r="20" fill="url(#g)"/><circle cx="32" cy="32" r="10.5" fill="none" stroke="#f4c77a" stroke-width="1.6"/><circle cx="32" cy="32" r="5.6" fill="url(#c)"/></svg>`;

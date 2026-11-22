@@ -47,9 +47,9 @@ export function SettingsScreen() {
               value={s.theme}
               onChange={(theme) => updateSettings({ theme })}
               options={[
-                { v: 'auto', label: t('themeAuto'), icon: <IconAuto /> },
-                { v: 'light', label: t('themeLight'), icon: <IconSun /> },
                 { v: 'dark', label: t('themeDark'), icon: <IconMoon /> },
+                { v: 'light', label: t('themeLight'), icon: <IconSun /> },
+                { v: 'auto', label: t('themeAuto'), icon: <IconAuto /> },
               ]}
             />
           </Row>

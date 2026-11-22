@@ -91,9 +91,16 @@ export function HeroBoard() {
       return undefined;
     }
     const timers: number[] = [];
-    let t = round > 0 ? 1200 : 1600;
+    let t = round > 0 ? 1200 : 900;
     timers.push(window.setTimeout(() => sim.fx.enter.fill('none'), t - 200));
-    for (const i of base.order) {
+    // the first round opens already half solved: the board is never a blank grey field
+    const skip = round === 0 ? Math.floor(base.order.length * 0.45) : 0;
+    if (skip) {
+      base.order.slice(0, skip).forEach(step);
+      sim.fx.enter.fill('none');
+      force((n) => n + 1);
+    }
+    for (const i of base.order.slice(skip)) {
       timers.push(
         window.setTimeout(() => {
           if (document.hidden) return;

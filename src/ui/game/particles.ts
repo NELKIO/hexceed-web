@@ -46,12 +46,10 @@ export class Particles {
     const cs = getComputedStyle(document.documentElement);
     const v = (n: string, f: string) => cs.getPropertyValue(n).trim() || f;
     return {
-      g1: v('--gem-1', '#8b5cf6'),
-      g2: v('--gem-2', '#22c3b5'),
-      a1: v('--accent-1', '#ff7a5c'),
-      a2: v('--accent-2', '#ffb340'),
-      bad: v('--bad', '#f04f5f'),
-      ink: v('--dust', '#c9c1d8'),
+      lume: v('--lume', '#f4c77a'),
+      core: v('--lume-core', '#fff4dc'),
+      bad: v('--bad', '#ff6b6b'),
+      ink: v('--dust', '#5b616d'),
     };
   }
 
@@ -59,29 +57,31 @@ export class Particles {
     if (!this.enabled) return;
     const c = this.colors();
     const add = (p: Partial<P>) =>
-      this.ps.push({ x, y, vx: 0, vy: 0, life: 0, max: 600, size: 4, color: c.g1, kind, rot: Math.random() * 6, vr: 0, delay, ...p });
+      this.ps.push({ x, y, vx: 0, vy: 0, life: 0, max: 600, size: 4, color: c.lume, kind, rot: 0, vr: 0, delay, ...p });
     if (kind === 'sparkle') {
-      add({ kind: 'ring', max: 520, size: 18, color: c.g2 });
-      const n = 11;
+      // the light comes on: a few fine motes drift outward (the flash ring itself is CSS)
+      const n = 6;
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
-        const sp = 70 + Math.random() * 90;
-        add({ vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 20, max: 560 + Math.random() * 320, size: 3 + Math.random() * 4.5, color: [c.g1, c.g2, '#ffffff', c.a2][i % 4], vr: (Math.random() - 0.5) * 10 });
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+        const sp = 30 + Math.random() * 26;
+        add({ kind: 'dust', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: 420 + Math.random() * 200, size: 1.1 + Math.random() * 0.9, color: i % 2 ? c.core : c.lume });
       }
     } else if (kind === 'dust') {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 4; i++) {
         const a = Math.random() * Math.PI * 2;
-        const sp = 24 + Math.random() * 30;
-        add({ kind: 'dust', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: 380 + Math.random() * 200, size: 1.6 + Math.random() * 2, color: c.ink });
+        const sp = 18 + Math.random() * 20;
+        add({ kind: 'dust', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: 320 + Math.random() * 160, size: 1.2 + Math.random() * 1.2, color: c.ink });
       }
     } else if (kind === 'bloom') {
-      for (let i = 0; i < 6; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 40 + Math.random() * 80;
-        add({ kind: 'sparkle', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, max: 900 + Math.random() * 500, size: 3 + Math.random() * 5, color: [c.g1, c.g2, '#fff3c4', c.a2, '#ffffff'][i % 5], vr: (Math.random() - 0.5) * 8 });
+      // win: a thin ring and a few warm motes rising
+      add({ kind: 'ring', max: 700, size: 14, color: c.lume });
+      for (let i = 0; i < 3; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+        const sp = 24 + Math.random() * 30;
+        add({ kind: 'dust', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, max: 900 + Math.random() * 400, size: 1.2 + Math.random() * 1, color: i % 2 ? c.core : c.lume });
       }
     } else if (kind === 'bad') {
-      add({ kind: 'ring', max: 420, size: 16, color: c.bad });
+      add({ kind: 'ring', max: 360, size: 16, color: c.bad });
     }
     if (!this.raf) {
       this.last = performance.now();
@@ -113,16 +113,16 @@ export class Particles {
       p.x += p.vx * s;
       p.y += p.vy * s;
       p.vx *= 0.94;
-      p.vy = p.vy * 0.94 + 60 * s;
+      p.vy = p.vy * 0.94 + (p.kind === 'dust' ? 0 : 60 * s);
       p.rot += p.vr * s;
       ctx.globalAlpha = Math.max(0, 1 - t * t);
       ctx.fillStyle = p.color;
       ctx.strokeStyle = p.color;
       if (p.kind === 'ring') {
-        ctx.globalAlpha = (1 - t) * 0.8;
-        ctx.lineWidth = 3 * (1 - t) + 0.5;
+        ctx.globalAlpha = (1 - t) * 0.7;
+        ctx.lineWidth = 1.6 * (1 - t) + 0.4;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size + t * 30, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size + t * 24, 0, Math.PI * 2);
         ctx.stroke();
       } else if (p.kind === 'dust') {
         ctx.beginPath();

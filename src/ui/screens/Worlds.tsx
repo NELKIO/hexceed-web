@@ -11,17 +11,17 @@ import { campaignStats, continueTarget } from '../progress';
 import { mechTitle } from '../mechanics';
 import { useSettings } from '../settings';
 
-const HEX = 'M25 2.5 L46.5 15 L46.5 40 L25 52.5 L3.5 40 L3.5 15 Z';
+// flat-top, like the board
+const HEX = 'M14.2 3.6 H35.8 L46.6 22.3 L35.8 41 H14.2 L3.4 22.3 Z';
 
 function LevelHex({ n, stars, done, current, started, onClick }: { n: number; stars: number; done: boolean; current: boolean; started: boolean; onClick: () => void }) {
   return (
     <button class={'lvl' + (done ? ' done' : '') + (current ? ' current' : '') + (started ? ' started' : '')} onClick={onClick} aria-label={t('level', { n })}>
-      <svg viewBox="0 0 50 55" class="lvl-hex" aria-hidden="true">
-        <path class="lh-base" d={HEX} transform="translate(0 2.5)" />
+      <svg viewBox="0 0 50 44.6" class="lvl-hex" aria-hidden="true">
         <path class="lh-face" d={HEX} />
       </svg>
       <span class="lvl-n">{n}</span>
-      <Stars n={done ? stars : 0} size={11} />
+      <Stars n={done ? stars : 0} size={9} />
     </button>
   );
 }
@@ -72,7 +72,7 @@ export function WorldsScreen() {
                   }}
                   aria-expanded={expanded}
                 >
-                  <span class="w-num">{wi + 1}</span>
+                  <span class="w-num">{String(wi + 1).padStart(2, '0')}</span>
                   <span class="w-info">
                     <span class="w-title">{w.title[lang]}</span>
                     <span class="w-mech">

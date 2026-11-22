@@ -101,7 +101,7 @@ export function PlayScreen({ params }: { params: string[] }) {
       level={level}
       storeKey={id}
       title={pos ? t('level', { n: pos.index + 1 }) : (level.title ?? id)}
-      subtitle={world ? world.title[lang] : undefined}
+      subtitle={world && pos ? `${t('world', { n: String(pos.world + 1).padStart(2, '0') })} · ${world.title[lang]}` : undefined}
       backTo="/worlds"
       next={nextOk && nextId ? { label: t('next'), go: () => navigate('/play/' + nextId, true) } : null}
     />

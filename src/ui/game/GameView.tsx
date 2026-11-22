@@ -20,7 +20,7 @@ import { explain } from './explain';
 import { Explainer } from './Explainer';
 import { levelMechanics, toExplain, type Mech } from '../mechanics';
 import { fmtTime, Sheet, Stars, useReducedMotion } from '../components/ui';
-import { IconBack, IconBulb, IconClock, IconGem, IconHelp, IconOpen, IconRestart, IconRotate, IconShare, IconSkull, IconX } from '../icons';
+import { IconBack, IconBulb, IconGem, IconHelp, IconOpen, IconRestart, IconRotate, IconShare, IconSkull, IconX } from '../icons';
 import { useSettings } from '../settings';
 import type { GameSession, RemoteMove } from './session';
 
@@ -162,7 +162,7 @@ export function GameView(props: GameViewProps) {
   /** First level, after the first open: the crystal to mark ("hold" / "right click"). */
   const [onbMark, setOnbMark] = useState(-1);
   const [flashCells, setFlashCells] = useState<{ cells: number[]; key: number } | null>(null);
-  const [miss, setMiss] = useState<{ cell: number; key: number } | null>(null);
+  const [miss, setMiss] = useState<{ cell: number; key: number; n: number } | null>(null);
   const anchor = useRef<[number, number] | null>(init.anchor);
   const [confirm, setConfirm] = useState(false);
   const [win, setWin] = useState<WinInfo | null>(null);
@@ -327,21 +327,20 @@ export function GameView(props: GameViewProps) {
     animateCell(
       i,
       [
-        { transform: 'translate(0,0)' },
-        { transform: 'translate(-7px,0) rotate(-4deg)' },
-        { transform: 'translate(6px,0) rotate(3deg)' },
-        { transform: 'translate(-4px,0) rotate(-2deg)' },
-        { transform: 'translate(2px,0)' },
-        { transform: 'translate(0,0)' },
+        { transform: 'translateX(0)' },
+        { transform: 'translateX(-4px)' },
+        { transform: 'translateX(3px)' },
+        { transform: 'translateX(-1.5px)' },
+        { transform: 'translateX(0)' },
       ],
-      { duration: 460, easing: 'ease-out' },
+      { duration: 180, easing: 'ease-out' },
     );
     boardRef.current?.shake();
     boardRef.current?.spawn('bad', i);
     setFlash((f) => f + 1);
-    // a red × over the cell: clearly "wrong", unlike the long-press progress ring
+    // the cell edge flashes red with a small mono "×N": clearly "wrong", unlike the long-press ring
     const key = Date.now();
-    setMiss({ cell: i, key });
+    setMiss({ cell: i, key, n: g.mistakes });
     setTimeout(() => setMiss((m) => (m && m.key === key ? null : m)), 900);
   };
 
@@ -703,8 +702,8 @@ export function GameView(props: GameViewProps) {
       maxD = Math.max(maxD, d);
       animateCell(
         i,
-        [{ transform: 'scale(1)' }, { transform: 'scale(1.16)', offset: 0.35 }, { transform: 'scale(0.97)', offset: 0.7 }, { transform: 'scale(1)' }],
-        { duration: 560, delay: d, easing: 'cubic-bezier(.3,.7,.3,1)' },
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.06)', offset: 0.4 }, { transform: 'scale(1)' }],
+        { duration: 520, delay: d, easing: 'cubic-bezier(.2,.7,.1,1)' },
       );
       if (k < 24) boardRef.current?.spawn('bloom', i, d + 100);
     });
@@ -961,9 +960,12 @@ export function GameView(props: GameViewProps) {
         ))}
       {miss && layout.px[miss.cell] && (
         <g key={miss.key} class="miss-x" transform={`translate(${layout.px[miss.cell][0].toFixed(1)} ${layout.px[miss.cell][1].toFixed(1)})`}>
-          <g class="mx-in">
-            <circle r={19} />
-            <path d="M-8.5,-8.5 L8.5,8.5 M8.5,-8.5 L-8.5,8.5" />
+          <path class="mx-edge" d={layout.outline[miss.cell] ?? OUTLINE_PATH} />
+          <g class="mx-tag" transform="translate(0 -46)">
+            <rect x={-19} y={-12} width={38} height={24} rx={4} />
+            <text text-anchor="middle" dominant-baseline="central" font-size={14}>
+              ×{miss.n}
+            </text>
           </g>
         </g>
       )}
@@ -1127,23 +1129,22 @@ export function GameView(props: GameViewProps) {
         {win && !session?.Result && (
           <div class="res">
             <div class="res-glow" />
-            <h2>{win.stars === 3 ? t('perfect') : t('solved')}</h2>
-            <Stars n={win.stars} size={52} animate />
+            <h2>{t('solved')}</h2>
+            <Stars n={win.stars} size={44} animate />
+            <p class="res-note">{win.stars === 3 ? t('mf_st_perfectSub') : t('starsRule')}</p>
             <div class="res-stats">
               <div>
-                <IconClock />
+                <small>{win.newBest ? t('newBest') : t('time')}</small>
                 <b>{fmtTime(win.time)}</b>
-                <small>{win.newBest ? t('newBest') : win.prev ? `${t('bestTime')} ${fmtTime(win.prev.time)}` : t('time')}</small>
+                {!win.newBest && win.prev ? <i>{`${t('bestTime')} ${fmtTime(win.prev.time)}`}</i> : null}
               </div>
               <div>
-                <IconX />
-                <b>{win.mistakes}</b>
                 <small>{t('mistakes')}</small>
+                <b>{win.mistakes}</b>
               </div>
               <div>
-                <IconBulb />
-                <b>{win.hints}</b>
                 <small>{t('hintsUsed')}</small>
+                <b>{win.hints}</b>
               </div>
             </div>
             <button
@@ -1183,16 +1184,16 @@ export function GameView(props: GameViewProps) {
 
 /** "Tap here" bubble + pulsing outline for the very first move. */
 function OnboardBubble({ x, y, below, path, label, gem }: { x: number; y: number; below: boolean; path?: string; label: string; gem?: boolean }) {
-  const w = 26 + label.length * 10.5;
+  const w = 30 + label.length * 9;
   return (
     <g class={'onb' + (gem ? ' gem' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
       <path class="onb-ring r1" d={path ?? OUTLINE_PATH} />
       <path class="onb-ring r2" d={path ?? OUTLINE_PATH} />
-      <g class="onb-bubble" transform={`translate(0 ${below ? 60 : -60})`}>
+      <g class="onb-bubble" transform={`translate(0 ${below ? 58 : -58})`}>
         <g class="onb-bob">
-          <rect x={-w / 2} y={-17} width={w} height={34} rx={17} />
-          <path d={below ? 'M-8,-16 L0,-26 L8,-16 Z' : 'M-8,16 L0,26 L8,16 Z'} />
-          <text text-anchor="middle" dominant-baseline="central" font-size={16}>
+          <rect x={-w / 2} y={-16} width={w} height={32} rx={6} />
+          <path d={below ? 'M-6,-15.5 L0,-22.5 L6,-15.5 Z' : 'M-6,15.5 L0,22.5 L6,15.5 Z'} />
+          <text text-anchor="middle" dominant-baseline="central" font-size={15}>
             {label}
           </text>
         </g>

@@ -15,7 +15,6 @@ const OPEN = (extra?: JSX.Element) => (
 
 const HIDDEN = (extra?: JSX.Element) => (
   <g class="face hid">
-    <path class="t-base" d={TILE_PATH} transform="translate(0 3.6)" />
     <path class="t-face" d={TILE_PATH} />
     <path class="t-hi" d={TILE_PATH} />
     {extra}
@@ -24,9 +23,7 @@ const HIDDEN = (extra?: JSX.Element) => (
 
 const GEM = (extra?: JSX.Element) => (
   <g class="face gem">
-    <path class="t-base" d={TILE_PATH} transform="translate(0 3.6)" />
     <path class="t-face" d={TILE_PATH} />
-    <path class="t-hi" d={TILE_PATH} />
     {extra}
   </g>
 );
@@ -84,7 +81,7 @@ function art(m: MechanicId): JSX.Element {
     case 'apart':
       return clue({ k: 'num', mod: 'apart' }, '2');
     case 'lock':
-      return <g class="face hid locked"><path class="t-base" d={TILE_PATH} transform="translate(0 3.6)" /><path class="t-face" d={TILE_PATH} /><LockGlyph n={2} /></g>;
+      return <g class="face hid locked"><path class="t-face" d={TILE_PATH} /><path class="t-hi" d={TILE_PATH} /><LockGlyph n={2} /></g>;
     case 'gemclue':
       return GEM(
         <g class="clue">

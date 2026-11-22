@@ -5,7 +5,7 @@ Clean-room: all code, levels, graphics and sounds are original. Repo: `NELKIO/he
 site: `https://nelkio.github.io/hexceed-web/`.
 
 Target players: the owner (likes hard puzzles) and his girlfriend (needs a very low entry barrier).
-So: **light theme by default** (dark theme optional), gentle onboarding, no game over, optional
+So: **dark theme by default** (light «Бумага» optional; visual system in `docs/STYLE.md`), gentle onboarding, no game over, optional
 hints that explain *why*, and later worlds that are genuinely hard.
 
 ## Theme

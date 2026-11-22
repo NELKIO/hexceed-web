@@ -23,9 +23,9 @@ export function roundedHexPath(r: number, round: number): string {
   return d + 'Z';
 }
 
-export const TILE_PATH = roundedHexPath(TILE_R, 0.16);
-export const OUTLINE_PATH = roundedHexPath(S * 0.99, 0.14);
-export const SMALL_PATH = roundedHexPath(S * 0.8, 0.16);
+export const TILE_PATH = roundedHexPath(TILE_R, 0.07);
+export const OUTLINE_PATH = roundedHexPath(S * 0.99, 0.07);
+export const SMALL_PATH = roundedHexPath(S * 0.8, 0.07);
 
 export interface Layout {
   /** Unit centre (centroid of its hexes for big cells). */
@@ -49,7 +49,7 @@ export interface Layout {
 type Pt = [number, number];
 
 /** Inset (by `inset`) and rounded outline of a union of hexes, relative to `origin`. */
-export function blobPath(hexes: Pt[], origin: Pt, inset: number, round = 0.16): string {
+export function blobPath(hexes: Pt[], origin: Pt, inset: number, round = 0.08): string {
   const set = new Set(hexes.map(([q, r]) => `${q},${r}`));
   const k = (p: Pt) => `${Math.round(p[0] * 10)},${Math.round(p[1] * 10)}`;
   const segs: [string, string, Pt, Pt][] = [];
@@ -132,8 +132,8 @@ export function layoutBoard(b: Board): Layout {
     const o: Pt = [sx / hs.length, sy / hs.length];
     px.push(o);
     if (hs.length > 1) {
-      tile.push(blobPath(hs, o, (S - TILE_R) * 0.87, 0.16));
-      outline.push(blobPath(hs, o, S * 0.01 * 0.87, 0.14));
+      tile.push(blobPath(hs, o, (S - TILE_R) * 0.87, 0.07));
+      outline.push(blobPath(hs, o, S * 0.01 * 0.87, 0.07));
     } else {
       tile.push(undefined);
       outline.push(undefined);

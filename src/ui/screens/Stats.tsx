@@ -69,9 +69,9 @@ function StatsBody() {
       </div>
       <h3 class="st-h">{t('mf_st_daily')}</h3>
       <div class="st-grid st-grid4">
-        <Tile tone="amber" icon={<span class="st-fire">🔥</span>} label={t('mf_st_streak')} value={days(streak.current)} />
-        <Tile tone="amber" icon={<IconTrophy />} label={t('mf_st_bestStreak')} value={days(streak.best)} />
-        <Tile tone="amber" icon={<IconCalendar />} label={t('mf_st_dailySolved')} value={dailyList.length} />
+        <Tile tone="plain" icon={<IconTrophy />} label={t('mf_st_streak')} value={days(streak.current)} />
+        <Tile tone="plain" icon={<IconTrophy />} label={t('mf_st_bestStreak')} value={days(streak.best)} />
+        <Tile tone="plain" icon={<IconCalendar />} label={t('mf_st_dailySolved')} value={dailyList.length} />
         <Tile tone="teal" icon={<IconInfinity />} label={t('mf_st_endless')} value={endlessWins} />
       </div>
       <h3 class="st-h">{t('mf_st_worlds')}</h3>
@@ -81,7 +81,7 @@ function StatsBody() {
           const pct = w.levels.length ? (n / w.levels.length) * 100 : 0;
           return (
             <div key={w.id} class="st-world" style={{ '--wc': w.accent } as JSX.CSSProperties}>
-              <span class="st-wn">{wi + 1}</span>
+              <span class="st-wn">{String(wi + 1).padStart(2, '0')}</span>
               <span class="st-wt">{w.title[lang]}</span>
               <span class="st-wc">
                 {n}/{w.levels.length}
@@ -104,7 +104,7 @@ export function StatsSheet({ open, onClose }: { open: boolean; onClose: () => vo
       {open && <StatsBody />}
       <div class="sheet-foot">
         <button
-          class="btn cta wide"
+          class="btn wide"
           onClick={() => {
             sfx.tick();
             onClose();

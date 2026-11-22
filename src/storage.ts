@@ -83,7 +83,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   lang: 'auto',
-  theme: 'light',
+  // dark «Ночь» is the default since v3; a theme the player saved earlier (light, auto) is kept
+  theme: 'dark',
   volume: 0.7,
   vibration: true,
   leftHanded: false,

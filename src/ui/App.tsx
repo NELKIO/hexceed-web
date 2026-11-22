@@ -11,45 +11,39 @@ function SvgDefs() {
   return (
     <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
+        {/* closed cell: machined graphite, a touch lighter at the top */}
         <linearGradient id="g-hid" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--hid-top)' }} />
           <stop offset="1" style={{ stopColor: 'var(--hid-bot)' }} />
         </linearGradient>
-        {/* lit cell: bright centre fading to a deeper amber rim */}
-        <radialGradient id="g-gem" cx="0.5" cy="0.46" r="0.62">
-          <stop offset="0" style={{ stopColor: 'var(--lit-c)' }} />
-          <stop offset="0.55" style={{ stopColor: 'var(--lit-m)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--lit-e)' }} />
-        </radialGradient>
+        {/* the faint top inner highlight of a closed cell */}
+        <linearGradient id="g-hi" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: 'var(--hid-hi)' }} />
+          <stop offset="0.42" style={{ stopColor: 'var(--hid-hi)', stopOpacity: 0 }} />
+        </linearGradient>
         {/* colour-blind mode: closed cells carry a fine hatch, so they differ by pattern too */}
         <pattern id="p-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="7" height="7" fill="none" />
-          <line x1="0" y1="0" x2="0" y2="7" style={{ stroke: 'var(--hid-edge)', strokeWidth: 2.2 }} />
+          <line x1="0" y1="0" x2="0" y2="7" style={{ stroke: 'var(--line-strong)', strokeWidth: 1.6 }} />
         </pattern>
-                <radialGradient id="pc-core" cx="0.42" cy="0.4" r="0.6">
-          <stop offset="0" style={{ stopColor: '#fffdf4' }} />
-          <stop offset="0.7" style={{ stopColor: 'var(--core-e)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--core-e)' }} />
+        {/* the light: a small bright core… */}
+        <radialGradient id="pc-core" cx="0.44" cy="0.42" r="0.62">
+          <stop offset="0" style={{ stopColor: 'var(--lume-core)' }} />
+          <stop offset="0.55" style={{ stopColor: 'var(--lume-core)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--lume)' }} />
         </radialGradient>
+        {/* …the soft light inside its own glass… */}
         <radialGradient id="pc-aura" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" style={{ stopColor: '#fffcef', stopOpacity: 1 }} />
-          <stop offset="0.38" style={{ stopColor: '#fff1c4', stopOpacity: 0.9 }} />
-          <stop offset="0.72" style={{ stopColor: 'var(--glow-1)', stopOpacity: 0.3 }} />
-          <stop offset="1" style={{ stopColor: 'var(--glow-1)', stopOpacity: 0 }} />
+          <stop offset="0" style={{ stopColor: 'var(--lume)', stopOpacity: 0.42 }} />
+          <stop offset="0.45" style={{ stopColor: 'var(--lume)', stopOpacity: 0.14 }} />
+          <stop offset="1" style={{ stopColor: 'var(--lume)', stopOpacity: 0 }} />
         </radialGradient>
+        {/* …and what spills just past its edges onto the neighbours */}
         <radialGradient id="pc-halo" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0.35" style={{ stopColor: 'var(--glow-1)', stopOpacity: 0.55 }} />
-          <stop offset="0.7" style={{ stopColor: 'var(--glow-2)', stopOpacity: 0.16 }} />
-          <stop offset="1" style={{ stopColor: 'var(--glow-2)', stopOpacity: 0 }} />
+          <stop offset="0.5" style={{ stopColor: 'var(--lume)', stopOpacity: 0.2 }} />
+          <stop offset="0.72" style={{ stopColor: 'var(--lume)', stopOpacity: 0.07 }} />
+          <stop offset="1" style={{ stopColor: 'var(--lume)', stopOpacity: 0 }} />
         </radialGradient>
-        <linearGradient id="g-lock" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--lock-top)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--lock-bot)' }} />
-        </linearGradient>
-        <linearGradient id="g-cta" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--accent-1)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--accent-2)' }} />
-        </linearGradient>
       </defs>
     </svg>
   );

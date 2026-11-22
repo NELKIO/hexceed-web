@@ -43,18 +43,32 @@ export function partnerColor(snap: RoomSnapshot): string {
   return PLAYER_COLORS[(k + 1) % PLAYER_COLORS.length];
 }
 
+/**
+ * Player colours as drawn: the protocol keeps the original ids (older clients validate against
+ * them), the UI shows a calmer, desaturated version of each.
+ */
+const DISPLAY: Record<string, string> = {
+  '#ff6f61': '#e48c7c',
+  '#8b5cf6': '#a596e6',
+  '#16b3a3': '#6fbfae',
+  '#f59e0b': '#a9c27a',
+  '#ec5f97': '#d98fb1',
+  '#4f7cff': '#8fa8ff',
+};
+export const tone = (c: string): string => DISPLAY[c.toLowerCase()] ?? c;
+
 export function HexDot({ color, size = 14 }: { color: string; size?: number }) {
   return (
     <svg class="hexdot" viewBox="0 0 20 22" width={size} height={size * 1.1} aria-hidden="true">
-      <path d="M10 1 L19 6 L19 16 L10 21 L1 16 L1 6 Z" fill={color} />
+      <path d="M10 1 L19 6 L19 16 L10 21 L1 16 L1 6 Z" fill={tone(color)} />
     </svg>
   );
 }
 
 export function PlayerChip({ name, color, you, away, waiting }: { name: string; color: string; you?: boolean; away?: boolean; waiting?: boolean }) {
   return (
-    <span class={'pchip' + (away ? ' away' : '') + (waiting ? ' waiting' : '')} style={{ '--pc': color } as JSX.CSSProperties}>
-      <HexDot color={waiting ? 'var(--dim)' : color} />
+    <span class={'pchip' + (away ? ' away' : '') + (waiting ? ' waiting' : '')} style={{ '--pc': tone(color) } as JSX.CSSProperties}>
+      <HexDot color={waiting ? 'var(--ink-3)' : color} />
       <span class="pc-name">{name}</span>
       {you && <small>{t('on_you')}</small>}
       {away && <small>{t('on_away')}</small>}
@@ -71,7 +85,7 @@ export function ProfileEditor({ profile, onChange }: { profile: Profile; onChang
     else setName(profile.name);
   };
   return (
-    <div class="profile" style={{ '--pc': profile.color } as JSX.CSSProperties}>
+    <div class="profile" style={{ '--pc': tone(profile.color) } as JSX.CSSProperties}>
       <div class="pf-avatar">
         <HexDot color={profile.color} size={34} />
         <b>{(profile.name || '?').slice(0, 1).toUpperCase()}</b>
@@ -101,7 +115,7 @@ export function ProfileEditor({ profile, onChange }: { profile: Profile; onChang
               aria-checked={c === profile.color}
               aria-label={c}
               class={'pf-color' + (c === profile.color ? ' on' : '')}
-              style={{ '--c': c } as JSX.CSSProperties}
+              style={{ '--c': tone(c) } as JSX.CSSProperties}
               onClick={() => {
                 sfx.toggle();
                 onChange({ name: cleanName(name) || profile.name, color: c });

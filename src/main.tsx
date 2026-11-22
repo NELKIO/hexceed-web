@@ -1,11 +1,7 @@
 import { render } from 'preact';
-import '@fontsource/unbounded/500.css';
-import '@fontsource/unbounded/600.css';
-import '@fontsource/unbounded/700.css';
-import '@fontsource/manrope/500.css';
-import '@fontsource/manrope/600.css';
-import '@fontsource/manrope/700.css';
-import '@fontsource/manrope/800.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/cyrillic-500.css';
+import './styles/fonts.css';
 import './styles/base.css';
 import './styles/menu.css';
 import './styles/screens.css';

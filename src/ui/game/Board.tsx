@@ -336,14 +336,8 @@ export const GameBoard = forwardRef<BoardHandle, Props>(function GameBoard(props
     shake: () => {
       if (pr.current.reducedMotion) return;
       svg.current?.animate(
-        [
-          { transform: 'translate(0,0)' },
-          { transform: 'translate(-5px,1px)' },
-          { transform: 'translate(4px,-1px)' },
-          { transform: 'translate(-2px,0)' },
-          { transform: 'translate(0,0)' },
-        ],
-        { duration: 280, easing: 'ease-out' },
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'translateX(0)' }],
+        { duration: 160, easing: 'ease-out' },
       );
     },
     el: () => wrap.current,

@@ -3,15 +3,15 @@ import { PieceIcon, PieceLogo } from './art/Piece';
 
 type P = JSX.SVGAttributes<SVGSVGElement>;
 
-const base = (children: JSX.Element | JSX.Element[], p: P, sw = 2) => (
+const base = (children: JSX.Element | JSX.Element[], p: P, sw = 1.6) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={sw} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" {...p}>
     {children}
   </svg>
 );
 
-export const IconBack = (p: P) => base(<path d="M15 5l-7 7 7 7" />, p, 2.4);
-export const IconChevron = (p: P) => base(<path d="M9 5l7 7-7 7" />, p, 2.4);
-export const IconArrow = (p: P) => base(<path d="M5 12h14M13 6l6 6-6 6" />, p, 2.4);
+export const IconBack = (p: P) => base(<path d="M15 5l-7 7 7 7" />, p, 1.8);
+export const IconChevron = (p: P) => base(<path d="M9 5l7 7-7 7" />, p, 1.8);
+export const IconArrow = (p: P) => base(<path d="M5 12h14M13 6l6 6-6 6" />, p, 1.8);
 export const IconPlay = (p: P) => base(<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" />, p);
 export const IconGear = (p: P) =>
   base(
@@ -25,7 +25,7 @@ export const IconGear = (p: P) =>
 export const IconHelp = (p: P) => base([<circle cx="12" cy="12" r="9" />, <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8" />, <circle cx="12" cy="17.2" r="0.6" fill="currentColor" />], p);
 export const IconCalendar = (p: P) =>
   base([<rect x="3.5" y="5" width="17" height="15.5" rx="4" />, <path d="M3.5 10h17M8.5 3v4M15.5 3v4" />, <path d="M12 13.2l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z" fill="currentColor" stroke-width="1" />], p);
-export const IconInfinity = (p: P) => base(<path d="M7.5 8.5c-2 0-3.5 1.6-3.5 3.5s1.5 3.5 3.5 3.5C11 15.5 13 8.5 16.5 8.5c2 0 3.5 1.6 3.5 3.5s-1.5 3.5-3.5 3.5C13 15.5 11 8.5 7.5 8.5z" />, p, 2.2);
+export const IconInfinity = (p: P) => base(<path d="M7.5 8.5c-2 0-3.5 1.6-3.5 3.5s1.5 3.5 3.5 3.5C11 15.5 13 8.5 16.5 8.5c2 0 3.5 1.6 3.5 3.5s-1.5 3.5-3.5 3.5C13 15.5 11 8.5 7.5 8.5z" />, p, 1.7);
 export const IconUsers = (p: P) =>
   base([<circle cx="9" cy="8.5" r="3.5" />, <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />, <path d="M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6" />], p);
 export const IconHexes = (p: P) =>
@@ -38,14 +38,14 @@ export const IconHexes = (p: P) =>
     p,
   );
 export const IconBulb = (p: P) => base([<path d="M9 18h6M10 21h4" />, <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z" />], p);
-export const IconRestart = (p: P) => base([<path d="M4 12a8 8 0 1 0 2.4-5.7" />, <path d="M4 4.5V9h4.5" />], p, 2.2);
+export const IconRestart = (p: P) => base([<path d="M4 12a8 8 0 1 0 2.4-5.7" />, <path d="M4 4.5V9h4.5" />], p, 1.7);
 export const IconRotate = (p: P) =>
-  base([<path d="M20 12a8 8 0 0 1-13.7 5.7" />, <path d="M4 12a8 8 0 0 1 13.7-5.7" />, <path d="M17.7 2.8v3.9h-3.9M6.3 21.2v-3.9h3.9" />], p, 2.2);
+  base([<path d="M20 12a8 8 0 0 1-13.7 5.7" />, <path d="M4 12a8 8 0 0 1 13.7-5.7" />, <path d="M17.7 2.8v3.9h-3.9M6.3 21.2v-3.9h3.9" />], p, 1.7);
 export const IconSkull = (p: P) =>
   base([<path d="M12 3a7.5 7.5 0 0 0-4.5 13.5V19a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-2.5A7.5 7.5 0 0 0 12 3z" />, <circle cx="9.3" cy="11.5" r="1.4" fill="currentColor" />, <circle cx="14.7" cy="11.5" r="1.4" fill="currentColor" />, <path d="M10.5 20v-2M13.5 20v-2" />], p);
 export const IconShield = (p: P) => base([<path d="M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z" />], p);
-export const IconX = (p: P) => base(<path d="M6 6l12 12M18 6L6 18" />, p, 2.4);
-export const IconCheck = (p: P) => base(<path d="M5 12.5l4.5 4.5L19 7.5" />, p, 2.6);
+export const IconX = (p: P) => base(<path d="M6 6l12 12M18 6L6 18" />, p, 1.8);
+export const IconCheck = (p: P) => base(<path d="M5 12.5l4.5 4.5L19 7.5" />, p, 1.9);
 export const IconSun = (p: P) => base([<circle cx="12" cy="12" r="4" />, <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />], p);
 export const IconMoon = (p: P) => base(<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" />, p);
 export const IconAuto = (p: P) => base([<circle cx="12" cy="12" r="8.5" />, <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />], p);
@@ -69,19 +69,20 @@ export const IconTarget = (p: P) => base([<path d="M12 3.5l7.4 4.25v8.5L12 20.5l
 
 /** Hex outline: the "open" tool. */
 export const IconOpen = (p: P) =>
-  base([<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />, <path d="M9 12.5l2 2 4-4.5" />], p, 2.2);
+  base([<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />, <path d="M9 12.5l2 2 4-4.5" />], p, 1.7);
 
 /** The hidden object (theme art lives in ui/art/Piece.tsx). */
 export const IconGem = (p: P) => <PieceIcon {...p} />;
 
+/** A star in this game is a small hex (filled = earned). */
 export function IconStar({ filled = true, ...p }: P & { filled?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" {...p}>
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...p} class={'ic-star ' + (p.class ?? '')}>
       <path
-        d="M12 2.8l2.75 5.6 6.15.9-4.45 4.33 1.05 6.12L12 16.87l-5.5 2.88 1.05-6.12L3.1 9.3l6.15-.9z"
+        d="M7.2 3.7h9.6L21.6 12l-4.8 8.3H7.2L2.4 12z"
         fill={filled ? 'currentColor' : 'none'}
         stroke="currentColor"
-        stroke-width={filled ? 0 : 1.8}
+        stroke-width={filled ? 0 : 1.6}
         stroke-linejoin="round"
       />
     </svg>

@@ -43,7 +43,7 @@ function serviceWorker(): Plugin {
       const files = Object.keys(bundle).filter((f) => {
         if (f.endsWith('.map') || f === 'sw.js') return false;
         if (/\.woff$/.test(f)) return false; // every browser we support takes woff2
-        if (/\.woff2$/.test(f)) return /-(latin|cyrillic)-\d{3}-/.test(f); // skip -ext / greek / vietnamese
+        if (/\.woff2$/.test(f)) return /-(latin|cyrillic)-(\d{3}|wght)-/.test(f); // skip -ext / greek / vietnamese
         return true;
       });
       let pub: string[] = [];

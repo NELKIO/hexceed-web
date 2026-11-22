@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="ru" data-theme="light">
+<html lang="ru" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
     <title>Hexlume — логическая головоломка на шестиугольниках</title>
     <meta name="description" content="Зажги все спрятанные огоньки на шестиугольном поле. Только логика, никаких угадываний. Кампания, задача дня, бесконечный режим." />
-    <meta name="theme-color" content="#fbf7f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#15131d" media="(prefers-color-scheme: dark)" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Hexlume" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Hexlume" />
@@ -21,19 +21,23 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="ru_RU" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233f4588'/%3E%3Cstop offset='1' stop-color='%23232650'/%3E%3C/linearGradient%3E%3CradialGradient id='b' cx='.5' cy='.5' r='.5'%3E%3Cstop offset='0' stop-color='%23fff6dc'/%3E%3Cstop offset='.28' stop-color='%23ffd27a'/%3E%3Cstop offset='.62' stop-color='%23f59a37' stop-opacity='.55'/%3E%3Cstop offset='1' stop-color='%23f08a2e' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z' fill='url%28%23a%29'/%3E%3Cpath d='M17.5 7.5h29l14.5 24.5-14.5 24.5h-29L3 32z' fill='none' stroke='%23fff' stroke-opacity='.18' stroke-width='2'/%3E%3Ccircle cx='32' cy='32' r='22' fill='url%28%23b%29'/%3E%3Ccircle cx='32' cy='32' r='8.5' fill='%23fff4d6'/%3E%3Ccircle cx='29.2' cy='29' r='2.6' fill='%23fff'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Cdefs%3E%3CradialGradient id=%22g%22 cx=%22.5%22 cy=%22.5%22 r=%22.5%22%3E%3Cstop offset=%220%22 stop-color=%22%23f4c77a%22 stop-opacity=%22.55%22/%3E%3Cstop offset=%22.55%22 stop-color=%22%23f4c77a%22 stop-opacity=%22.12%22/%3E%3Cstop offset=%221%22 stop-color=%22%23f4c77a%22 stop-opacity=%220%22/%3E%3C/radialGradient%3E%3CradialGradient id=%22c%22 cx=%22.45%22 cy=%22.42%22 r=%22.6%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffaf0%22/%3E%3Cstop offset=%22.6%22 stop-color=%22%23ffe6b5%22/%3E%3Cstop offset=%221%22 stop-color=%22%23f4c77a%22/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d=%22M17.6 8.2h28.8L60.8 32 46.4 55.8H17.6L3.2 32z%22 fill=%22%231a1d23%22 stroke=%22%23ffffff%22 stroke-opacity=%22.14%22 stroke-width=%221.2%22/%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2220%22 fill=%22url%28%23g%29%22/%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2210.5%22 fill=%22none%22 stroke=%22%23f4c77a%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%225.6%22 fill=%22url%28%23c%29%22/%3E%3C/svg%3E" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <script>
       // apply the saved / system theme before the first paint (no flash)
       try {
         var s = JSON.parse(localStorage.getItem('hexlume:settings') || '{}');
-        // light by default; "auto" follows the system
-        var th = s.theme === 'dark' ? 'dark' : s.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        // dark by default; "light" when chosen; "auto" follows the system
+        var th = s.theme === 'light' ? 'light' : s.theme === 'auto' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         document.documentElement.dataset.theme = th;
         if (s.theme !== 'auto')
           document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-            m.setAttribute('content', th === 'dark' ? '#15131d' : '#fbf7f1');
+            m.setAttribute('content', th === 'dark' ? '#0b0c0f' : '#f4f2ed');
+          });
+        else
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+            if ((m.getAttribute('media') || '').indexOf('light') >= 0) m.setAttribute('content', '#f4f2ed');
           });
       } catch (e) {}
     </script>

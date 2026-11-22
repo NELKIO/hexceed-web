@@ -14,7 +14,7 @@ import type { WinInfo } from '../game/GameView';
 import { OUTLINE_PATH, S, type Layout } from '../game/geometry';
 import { fmtTime, Stars } from '../components/ui';
 import { IconBulb, IconClock, IconRestart, IconX } from '../icons';
-import { ConnBadge, HexDot, PlayerChip, partnerColor, useRoomSnap } from './parts';
+import { ConnBadge, HexDot, PlayerChip, partnerColor, tone, useRoomSnap } from './parts';
 
 type Listener<T> = (v: T) => void;
 
@@ -80,13 +80,13 @@ function coopSession(room: RoomSession, game: GameSetup, hooks: SessionHooks): G
     const show = snap.partner?.online && cur.cell >= 0 && cur.cell < layout.px.length && Date.now() - cur.at < 9000;
     const name = snap.partner?.name ?? '';
     return (
-      <g class="partner-layer" style={{ '--pc': color } as JSX.CSSProperties}>
+      <g class="partner-layer" style={{ '--pc': tone(color) } as JSX.CSSProperties}>
         {rip.map((r) => {
           const [x, y] = layout.px[r.cell] ?? [0, 0];
           return (
             <g key={r.key} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
-              <path class="p-ripple" d={layout.outline[r.cell] ?? OUTLINE_PATH} style={{ stroke: r.color }} />
-              <path class="p-ripple r2" d={layout.outline[r.cell] ?? OUTLINE_PATH} style={{ stroke: r.color }} />
+              <path class="p-ripple" d={layout.outline[r.cell] ?? OUTLINE_PATH} style={{ stroke: tone(r.color) }} />
+              <path class="p-ripple r2" d={layout.outline[r.cell] ?? OUTLINE_PATH} style={{ stroke: tone(r.color) }} />
             </g>
           );
         })}
@@ -158,7 +158,7 @@ function coopSession(room: RoomSession, game: GameSetup, hooks: SessionHooks): G
           {rows.map((r) => {
             const c = table[r.id] ?? { opens: 0, marks: 0, mistakes: 0, hints: 0 };
             return (
-              <div class="ct-row" key={r.id} style={{ '--pc': r.color } as JSX.CSSProperties}>
+              <div class="ct-row" key={r.id} style={{ '--pc': tone(r.color) } as JSX.CSSProperties}>
                 <span class="ct-name">
                   <HexDot color={r.color} />
                   <span>{r.name}</span>
@@ -243,7 +243,7 @@ function raceSession(room: RoomSession, game: GameSetup, hooks: SessionHooks): G
   function Bar({ p, color }: { p: RaceProgress | null; color: string }) {
     const pct = p ? Math.round((p.done / Math.max(1, p.total)) * 100) : 0;
     return (
-      <span class="o-bar" style={{ '--pc': color } as JSX.CSSProperties} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <span class="o-bar" style={{ '--pc': tone(color) } as JSX.CSSProperties} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <i style={{ width: pct + '%' }} />
       </span>
     );
@@ -299,7 +299,7 @@ function raceSession(room: RoomSession, game: GameSetup, hooks: SessionHooks): G
         <h2>{head}</h2>
         {v === 'first' && <p class="race-wait">{t('on_waitFinish', { name: pName })}</p>}
         <div class="race-rows">
-          <div class={'race-row' + (v === 'won' || v === 'first' ? ' best' : '')} style={{ '--pc': snap.self.color } as JSX.CSSProperties}>
+          <div class={'race-row' + (v === 'won' || v === 'first' ? ' best' : '')} style={{ '--pc': tone(snap.self.color) } as JSX.CSSProperties}>
             <span class="ct-name">
               <HexDot color={snap.self.color} />
               <span>{snap.self.name}</span>
@@ -311,7 +311,7 @@ function raceSession(room: RoomSession, game: GameSetup, hooks: SessionHooks): G
               {win.mistakes}
             </span>
           </div>
-          <div class={'race-row' + (v === 'lost' ? ' best' : '')} style={{ '--pc': color } as JSX.CSSProperties}>
+          <div class={'race-row' + (v === 'lost' ? ' best' : '')} style={{ '--pc': tone(color) } as JSX.CSSProperties}>
             <span class="ct-name">
               <HexDot color={color} />
               <span>{pName}</span>
